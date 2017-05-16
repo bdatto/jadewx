@@ -241,11 +241,11 @@ void setRX(libusb_device_handle *handle)
     }
   }
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d0,0,RX_buffer,21,1000);
-  printf("set RX status: %d\n",status);
-  for (size_t n=0; n < RX_BUFFER_LENGTH; ++n) {
-    printf(" %02x",RX_buffer[n]);
-  }
-  printf("\n");
+//  printf("set RX status: %d\n",status);
+//  for (size_t n=0; n < RX_BUFFER_LENGTH; ++n) {
+//    printf(" %02x",RX_buffer[n]);
+//  }
+//  printf("\n");
 }
 
 void do_setup(libusb_device_handle *handle)
@@ -322,11 +322,11 @@ void setTX(libusb_device_handle *handle)
     }
   }
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d1,0,TX_buffer,21,1000);
-  printf("setTX status %d \n",status);
-  for (size_t n=0; n < TX_BUFFER_LENGTH; ++n) {
-    printf(" %02x",TX_buffer[n]);
-  }
-  printf("\n");
+//  printf("setTX status %d \n",status);
+//  for (size_t n=0; n < TX_BUFFER_LENGTH; ++n) {
+//    printf(" %02x",TX_buffer[n]);
+//  }
+//  printf("\n");
 }
 
 MYSQL mysql;
@@ -404,10 +404,12 @@ void request_weather_message(libusb_device_handle *handle,int action,int history
   msg_buffer[9]=(history_addr >> 16) & 0x0f | 16*(comm_interval & 0xf);
   msg_buffer[10]=(history_addr >> 8) & 0xff;
   msg_buffer[11]=(history_addr >> 0) & 0xff;
+/*
   for (size_t n=0; n < 12; ++n) {
     printf(" %02x",(int)msg_buffer[n]);
   }
   printf("\n");
+*/
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,msg_buffer,12,1000);
 }
 
@@ -553,6 +555,7 @@ typedef struct {
   float temp_out,wspd,wgust,rain_raw,barom;
   int rh_out,wdir;
   char datetime[20];
+  int day_num;
 } History;
 
 void decode_history(unsigned char *buffer,History *history)
@@ -577,7 +580,8 @@ printf("latest address: %d  this address: %d\n",history->latest_addr,history->th
   history->wgust=idum/10.*2.237;
   history->rain_raw=((buffer[16] >> 4)*100.+(buffer[16] & 0xf)*10.+(buffer[17] >> 4))/100.;
   history->barom=((buffer[19] & 0xf)*10000.+(buffer[20] >> 4)*1000.+(buffer[20] & 0xf)*100.+(buffer[21] >> 4)*10.+(buffer[21] & 0xf))/10.;
-  sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),(buffer[27] >> 4)*10+(buffer[27] & 0xf),(buffer[28] >> 4)*10+(buffer[28] & 0xf),(buffer[29] >> 4)*10+(buffer[29] & 0xf));
+  history->day_num=(buffer[27] >> 4)*10+(buffer[27] & 0xf);
+  sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),history->day_num,(buffer[28] >> 4)*10+(buffer[28] & 0xf),(buffer[29] >> 4)*10+(buffer[29] & 0xf));
   history->datetime[19]='\0';
 }
 
@@ -652,12 +656,12 @@ int timestamp(char *datetime)
 {
   struct tm tm;
   strptime(datetime,"%Y-%m-%d %H:%M:%S",&tm);
-  return mktime(&tm)-25200;
+  return mktime(&tm);
 }
 
 int now(time_t epoch)
 {
-  return mktime(localtime(&epoch))-25200;
+  return mktime(localtime(&epoch));
 }
 
 void process_history_records(libusb_device_handle *handle,History *history)
@@ -913,6 +917,7 @@ printf("setup status: %d\n",status);
 	data_buffer[1]=0;
 	const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
 	char *ibuf=(char *)malloc(256*sizeof(char));
+	float rain_1hr_base=0.;
 	while (1) {
 	  nanosleep(&first_sleep,NULL);
 	  while (1) {
@@ -969,7 +974,7 @@ if (data_buffer[6] >= 0x5f || data_buffer[5] == 0x20) {
 		  time_t t=time(NULL);
 		  struct tm *tm_result;
 		  get_utc_date(t,&tm_result);
-		  sprintf(url,URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		  sprintf(url,URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,(rain_day+wx[cwx_idx].rain_1hr-rain_1hr_base),tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
 		  printf("%s\n",url);
 		  curl_easy_setopt(curl,CURLOPT_URL,url);
 		  curl_easy_perform(curl);
@@ -997,6 +1002,16 @@ if (data_buffer[6] >= 0x5f || data_buffer[5] == 0x20) {
 		if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
 		  if (strcmp(history_queue[curr_hidx].datetime,history_queue[last_hidx].datetime) != 0) {
 		    last_hidx=curr_hidx;
+		    if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
+// if the day has changed, reset the daily rainfall to zero
+			rain_day=0.;
+		    }
+		    else {
+// otherwise, increment the daily rainfall by the rain amount in the last
+//  history period
+			rain_day+=history_queue[curr_hidx].rain_raw;
+		    }
+		    rain_1hr_base=wx[cwx_idx].rain_1hr;
 		  }
                   else {
 		    curr_hidx=last_hidx;
