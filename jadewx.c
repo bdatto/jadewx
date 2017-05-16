@@ -21,7 +21,7 @@ unsigned char *TX_buffer;
 unsigned char *state_buffer=NULL,*msg_buffer=NULL;
 const size_t CONFIG_BUFFER_LENGTH=51;
 unsigned char *config_buffer=NULL;
-const char *URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=homegrown&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
+const char *URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
 char *url=NULL;
 int mdays[]={0,31,28,31,30,31,30,31,31,30,31,30,31};
 struct timespec first_sleep,next_sleep;
@@ -465,8 +465,6 @@ void store_config(libusb_device_handle *handle,unsigned char *buffer)
 	printf(" %02x",config_buffer[n]);
     }
     printf("\n");
-//		  request_weather_message(handle,0,0xfffff);
-//		  request_weather_message(handle,0,latest_haddr);
     request_set_config(handle,buffer,0);
     config_set=1;
   }
@@ -564,7 +562,7 @@ void decode_history(unsigned char *buffer,History *history)
   }
   printf("\n");
   history->latest_addr=(buffer[6] << 8 | buffer[7]) << 8 | buffer[8];
-latest_haddr=history->latest_addr-18;
+  latest_haddr=history->latest_addr-18;
   history->this_addr=(buffer[9] << 8 | buffer[10]) << 8 | buffer[11];
 printf("latest address: %d  this address: %d\n",history->latest_addr,history->this_addr);
   history->temp_out=(((buffer[22] >> 4)*100.+(buffer[22] & 0xf)*10.+(buffer[23] >> 4))/10.-40.)*9./5.+32.;
@@ -662,7 +660,7 @@ int now(time_t epoch)
   return mktime(localtime(&epoch))-25200;
 }
 
-void process_history_records(libusb_device_handle *handle)
+void process_history_records(libusb_device_handle *handle,History *history)
 {
   if (mysql_username != NULL && mysql_password != NULL) {
     open_mysql();
@@ -682,6 +680,7 @@ void process_history_records(libusb_device_handle *handle)
     else {
 	addr=0xfffff;
     }
+printf("address is %d\n",addr);
     mysql_free_result(result);
     size_t num_recs=0;
     while (1) {
@@ -704,31 +703,32 @@ void process_history_records(libusb_device_handle *handle)
 	  cfg_cs[0]=data_buffer[7];
 	  cfg_cs[1]=data_buffer[8];
 	}
-	History history;
 	if (data_buffer[5] == 0x80) {
-	  decode_history(&data_buffer[3],&history);
-	  printf("time %s\n",history.datetime);
-	  printf("pressure: %.1fhPa\n",history.barom);
-	  printf("outside temp: %.1fF\n",history.temp_out);
-	  printf("outside RH: %d%%\n",history.rh_out);
-	  printf("wind direction: %ddeg\n",history.wdir);
-	  printf("wind speed: %.1fmph\n",history.wspd);
-	  printf("wind gust: %.1fmph\n",history.wgust);
-	  printf("rain: %.2fin\n",history.rain_raw);
+	  decode_history(&data_buffer[3],history);
+	  printf("time %s\n",history->datetime);
+	  printf("pressure: %.1fhPa\n",history->barom);
+	  printf("outside temp: %.1fF\n",history->temp_out);
+	  printf("outside RH: %d%%\n",history->rh_out);
+	  printf("wind direction: %ddeg\n",history->wdir);
+	  printf("wind speed: %.1fmph\n",history->wspd);
+	  printf("wind gust: %.1fmph\n",history->wgust);
+	  printf("rain: %.2fin\n",history->rain_raw);
 	  for (size_t n=0; n < 256; ++n) {
 	    ibuf[n]=0;
 	  }
-	  sprintf(ibuf,HISTORY_INSERT,timestamp(history.datetime),lround(history.barom*10.),lround(history.temp_out*10.),history.rh_out,history.wdir,lround(history.wspd*10.),lround(history.wgust*10.),lround(history.rain_raw*100.),history.this_addr);
+	  sprintf(ibuf,HISTORY_INSERT,timestamp(history->datetime),lround(history->barom*10.),lround(history->temp_out*10.),history->rh_out,history->wdir,lround(history->wspd*10.),lround(history->wgust*10.),lround(history->rain_raw*100.),history->this_addr);
 	  mysql_query(&mysql,ibuf);
-	  addr=history.this_addr;
+	  addr=history->this_addr;
 	  ++num_recs;
+	  if (history->this_addr == history->latest_addr) {
+	    setTX(handle);
+	    break;
+	  }
 	}
 	request_weather_message(handle,0,addr);
 	setTX(handle);
-	if (history.this_addr == history.latest_addr) {
-	  break;
-	}
     }
+    latest_haddr=history->latest_addr-18;
     for (size_t n=0; n < 256; ++n) {
 	ibuf[n]=0;
     }
@@ -738,6 +738,7 @@ void process_history_records(libusb_device_handle *handle)
     sprintf(midnight,"20%02d-%02d-%02d 00:00:00",tm_t->tm_year-100,tm_t->tm_mon+1,tm_t->tm_mday);
     midnight[19]='\0';
     sprintf(ibuf,"select sum(i_rain)/100. from wx.history where timestamp > %d and timestamp <= %d",timestamp(midnight),now(t));
+printf("query: %s\n",ibuf);
     mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
@@ -751,6 +752,28 @@ printf("daily rain: %.2f\n",rain_day);
     printf("%d records processed in %d seconds\n",num_recs,(t2-t1));
     close_mysql();
     free(ibuf);
+  }
+}
+
+
+const char *HISTORY_INSERT="insert into wx.history values(%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update haddr = values(haddr)";
+char *ibuf=NULL;
+void store_history_records(History *history_queue,size_t num_records)
+{
+  if (mysql_username != NULL && mysql_password != NULL) {
+    open_mysql();
+    if (ibuf == NULL) {
+	ibuf=(char *)malloc(256*sizeof(char));
+    }
+    for (size_t n=0; n < num_records; ++n) {
+	for (size_t m=0; m < 256; ++m) {
+	  ibuf[m]=0;
+	}
+	sprintf(ibuf,HISTORY_INSERT,timestamp(history_queue[n].datetime),lround(history_queue[n].barom*10.),lround(history_queue[n].temp_out*10.),history_queue[n].rh_out,history_queue[n].wdir,lround(history_queue[n].wspd*10.),lround(history_queue[n].wgust*10.),lround(history_queue[n].rain_raw*100.),history_queue[n].this_addr);
+	mysql_query(&mysql,ibuf);
+	printf("stored '%s'\n",ibuf);
+    }
+    close_mysql();
   }
 }
 
@@ -881,7 +904,10 @@ printf("setup status: %d\n",status);
 	char c;
 	scanf("%c",&c);
 
-	process_history_records(handle);
+	const size_t HISTORY_SIZE=300;
+	History *history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
+	size_t curr_hidx=0,last_hidx=0;
+	process_history_records(handle,&history_queue[curr_hidx++]);
 
 	unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
 	data_buffer[1]=0;
@@ -955,16 +981,29 @@ if (data_buffer[6] >= 0x5f || data_buffer[5] == 0x20) {
 	    }
 	    case 0x80:
 	    {
-		History history;
-		decode_history(&data_buffer[3],&history);
-		printf("time %s\n",history.datetime);
-		printf("pressure: %.1fhPa\n",history.barom);
-		printf("outside temp: %.1fF\n",history.temp_out);
-		printf("outside RH: %d%%\n",history.rh_out);
-		printf("wind direction: %ddeg\n",history.wdir);
-		printf("wind speed: %.1fmph\n",history.wspd);
-		printf("wind gust: %.1fmph\n",history.wgust);
-		printf("rain: %.2fin\n",history.rain_raw);
+		if (curr_hidx == HISTORY_SIZE) {
+		  store_history_records(history_queue,HISTORY_SIZE);
+		  curr_hidx=0;
+		}
+		decode_history(&data_buffer[3],&history_queue[curr_hidx]);
+		printf("time %s\n",history_queue[curr_hidx].datetime);
+		printf("pressure: %.1fhPa\n",history_queue[curr_hidx].barom);
+		printf("outside temp: %.1fF\n",history_queue[curr_hidx].temp_out);
+		printf("outside RH: %d%%\n",history_queue[curr_hidx].rh_out);
+		printf("wind direction: %ddeg\n",history_queue[curr_hidx].wdir);
+		printf("wind speed: %.1fmph\n",history_queue[curr_hidx].wspd);
+		printf("wind gust: %.1fmph\n",history_queue[curr_hidx].wgust);
+		printf("rain: %.2fin\n",history_queue[curr_hidx].rain_raw);
+		if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
+		  if (strcmp(history_queue[curr_hidx].datetime,history_queue[last_hidx].datetime) != 0) {
+		    last_hidx=curr_hidx;
+		  }
+                  else {
+		    curr_hidx=last_hidx;
+		  }
+		  latest_haddr=history_queue[curr_hidx].this_addr;
+                  ++curr_hidx;
+		}
 		if (!config_requested) {
 		  request_get_config(handle,data_buffer);
 		}
