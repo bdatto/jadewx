@@ -392,6 +392,9 @@ void request_weather_message(libusb_device_handle *handle,int action,int history
   if (msg_buffer == NULL) {
     msg_buffer=(unsigned char *)malloc(12*sizeof(unsigned char));
   }
+  if (history_addr != 0xfffff) {
+    printf("requesting history message with address: %d\n",history_addr);
+  }
   msg_buffer[0]=0xd5;
   msg_buffer[1]=0x0;
   msg_buffer[2]=0x9;
@@ -492,7 +495,7 @@ void set_time(libusb_device_handle *handle,unsigned char *buffer)
   struct tm *tm_result=localtime(&t);
   ++tm_result->tm_mon;
   tm_result->tm_year-=100;
-  printf("20%02d-%02d-%02d %02d:%02d:%02d %d\n",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,tm_result->tm_wday);
+  printf("***TIMESET*** 20%02d-%02d-%02d %02d:%02d:%02d %d\n",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,tm_result->tm_wday);
   buffer[0]=0xd5;
   buffer[1]=0x0;
   buffer[2]=0xc;
@@ -516,10 +519,10 @@ void set_time(libusb_device_handle *handle,unsigned char *buffer)
   buffer[13]=((tm_result->tm_year % 10) << 4) | ((i*16) >> 4);
   i=tm_result->tm_year/10;
   buffer[14]=((i*16) >> 4);
-  for (size_t n=0; n < 15; ++n) {
-    printf(" %02x",buffer[n]);
-  }
-  printf("\n");
+//  for (size_t n=0; n < 15; ++n) {
+//    printf(" %02x",buffer[n]);
+//  }
+//  printf("\n");
   libusb_control_transfer(handle,0x21,0x9,0x3d5,0,buffer,15,1000);
   first_sleep.tv_nsec=85000000;
   next_sleep.tv_nsec=5000000;
@@ -560,14 +563,13 @@ typedef struct {
 
 void decode_history(unsigned char *buffer,History *history)
 {
-  for (size_t n=0; n < 30; ++n) {
-    printf(" %02x",buffer[n]);
-  }
-  printf("\n");
+//  for (size_t n=0; n < 30; ++n) {
+//    printf(" %02x",buffer[n]);
+//  }
+//  printf("\n");
   history->latest_addr=(buffer[6] << 8 | buffer[7]) << 8 | buffer[8];
   latest_haddr=history->latest_addr-18;
   history->this_addr=(buffer[9] << 8 | buffer[10]) << 8 | buffer[11];
-printf("latest address: %d  this address: %d\n",history->latest_addr,history->this_addr);
   history->temp_out=(((buffer[22] >> 4)*100.+(buffer[22] & 0xf)*10.+(buffer[23] >> 4))/10.-40.)*9./5.+32.;
   history->rh_out=(buffer[17] & 0xf)*10+(buffer[18] >> 4);
   history->wdir=lroundf((buffer[14] >> 4)*22.5);
@@ -583,6 +585,11 @@ printf("latest address: %d  this address: %d\n",history->latest_addr,history->th
   history->day_num=(buffer[27] >> 4)*10+(buffer[27] & 0xf);
   sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),history->day_num,(buffer[28] >> 4)*10+(buffer[28] & 0xf),(buffer[29] >> 4)*10+(buffer[29] & 0xf));
   history->datetime[19]='\0';
+}
+
+void print_history(History *history)
+{
+  printf("latest: %d  this: %d, %s, %5.1f, %5.1f, %2d, %3d, %4.1f, %4.1f, %4.2f\n",history->latest_addr,history->this_addr,history->datetime,history->barom,history->temp_out,history->rh_out,history->wdir,history->wspd,history->wgust,history->rain_raw);
 }
 
 int wx_changed()
@@ -684,7 +691,7 @@ void process_history_records(libusb_device_handle *handle,History *history)
     else {
 	addr=0xfffff;
     }
-printf("address is %d\n",addr);
+    printf("last history address in the database: %d\n",addr);
     mysql_free_result(result);
     size_t num_recs=0;
     while (1) {
@@ -696,11 +703,11 @@ printf("address is %d\n",addr);
 	  nanosleep(&next_sleep,NULL);
 	}
 	int status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
-	printf("getframe: [%02x]",data_buffer[5]);
-	for (size_t n=0; n < data_buffer[2]; ++n) {
-	  printf(" %02x",data_buffer[n]);
-	}
-	printf("\n");
+//	printf("getframe: [%02x]",data_buffer[5]);
+//	for (size_t n=0; n < data_buffer[2]; ++n) {
+//	  printf(" %02x",data_buffer[n]);
+//	}
+//	printf("\n");
 	if (cfg_cs[0] != 0x0 || cfg_cs[1] != 0x0 || data_buffer[5] == 0x40) {
 	}
 	else {
@@ -709,14 +716,7 @@ printf("address is %d\n",addr);
 	}
 	if (data_buffer[5] == 0x80) {
 	  decode_history(&data_buffer[3],history);
-	  printf("time %s\n",history->datetime);
-	  printf("pressure: %.1fhPa\n",history->barom);
-	  printf("outside temp: %.1fF\n",history->temp_out);
-	  printf("outside RH: %d%%\n",history->rh_out);
-	  printf("wind direction: %ddeg\n",history->wdir);
-	  printf("wind speed: %.1fmph\n",history->wspd);
-	  printf("wind gust: %.1fmph\n",history->wgust);
-	  printf("rain: %.2fin\n",history->rain_raw);
+	  print_history(history);
 	  for (size_t n=0; n < 256; ++n) {
 	    ibuf[n]=0;
 	  }
@@ -908,7 +908,8 @@ printf("setup status: %d\n",status);
 	char c;
 	scanf("%c",&c);
 
-	const size_t HISTORY_SIZE=300;
+//	const size_t HISTORY_SIZE=300;
+const size_t HISTORY_SIZE=60;
 	History *history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
 	size_t curr_hidx=0,last_hidx=0;
 	process_history_records(handle,&history_queue[curr_hidx++]);
@@ -927,11 +928,11 @@ printf("setup status: %d\n",status);
 	    nanosleep(&next_sleep,NULL);
 	  }
 	  status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
-	  printf("getframe: [%02x]",data_buffer[5]);
-	  for (size_t n=0; n < data_buffer[2]; ++n) {
-	    printf(" %02x",data_buffer[n]);
-	  }
-	  printf("\n");
+//	  printf("getframe: [%02x]",data_buffer[5]);
+//	  for (size_t n=0; n < data_buffer[2]; ++n) {
+//	    printf(" %02x",data_buffer[n]);
+//	  }
+//	  printf("\n");
 	  if (cfg_cs[0] != 0x0 || cfg_cs[1] != 0x0 || data_buffer[5] == 0x40) {
 	  }
 	  else {
@@ -975,7 +976,7 @@ if (data_buffer[6] >= 0x5f || data_buffer[5] == 0x20) {
 		  struct tm *tm_result;
 		  get_utc_date(t,&tm_result);
 		  sprintf(url,URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,(rain_day+wx[cwx_idx].rain_1hr-rain_1hr_base),tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		  printf("%s\n",url);
+		  printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,(rain_day+wx[cwx_idx].rain_1hr-rain_1hr_base),tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
 		  curl_easy_setopt(curl,CURLOPT_URL,url);
 		  curl_easy_perform(curl);
 		}
@@ -991,17 +992,9 @@ if (data_buffer[6] >= 0x5f || data_buffer[5] == 0x20) {
 		  curr_hidx=0;
 		}
 		decode_history(&data_buffer[3],&history_queue[curr_hidx]);
-		printf("time %s\n",history_queue[curr_hidx].datetime);
-		printf("pressure: %.1fhPa\n",history_queue[curr_hidx].barom);
-		printf("outside temp: %.1fF\n",history_queue[curr_hidx].temp_out);
-		printf("outside RH: %d%%\n",history_queue[curr_hidx].rh_out);
-		printf("wind direction: %ddeg\n",history_queue[curr_hidx].wdir);
-		printf("wind speed: %.1fmph\n",history_queue[curr_hidx].wspd);
-		printf("wind gust: %.1fmph\n",history_queue[curr_hidx].wgust);
-		printf("rain: %.2fin\n",history_queue[curr_hidx].rain_raw);
+		print_history(&history_queue[curr_hidx]);
 		if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
 		  if (strcmp(history_queue[curr_hidx].datetime,history_queue[last_hidx].datetime) != 0) {
-		    last_hidx=curr_hidx;
 		    if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
 // if the day has changed, reset the daily rainfall to zero
 			rain_day=0.;
@@ -1012,6 +1005,7 @@ if (data_buffer[6] >= 0x5f || data_buffer[5] == 0x20) {
 			rain_day+=history_queue[curr_hidx].rain_raw;
 		    }
 		    rain_1hr_base=wx[cwx_idx].rain_1hr;
+		    last_hidx=curr_hidx;
 		  }
                   else {
 		    curr_hidx=last_hidx;
