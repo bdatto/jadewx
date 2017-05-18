@@ -14,19 +14,23 @@ int deviceID;
 int comm_interval=10;
 int config_set=0,config_requested=0;
 unsigned char cfg_cs[2]={0,0};
-const size_t RX_BUFFER_LENGTH=21;
-unsigned char *RX_buffer;
-const size_t TX_BUFFER_LENGTH=21;
-unsigned char *TX_buffer;
-unsigned char *state_buffer=NULL,*msg_buffer=NULL;
-const size_t CONFIG_BUFFER_LENGTH=51;
-unsigned char *config_buffer=NULL;
-const char *URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
-char *url=NULL;
-int mdays[]={0,31,28,31,30,31,30,31,31,30,31,30,31};
 struct timespec first_sleep,next_sleep;
 int latest_haddr=0xfffff;
-float rain_day=-999.;
+float rain_day=-999.,rain_1hr_base=-999.;
+CURL *curl=NULL;
+time_t last_WU_upload_time=0;
+
+int timestamp(char *datetime)
+{
+  struct tm tm;
+  strptime(datetime,"%Y-%m-%d %H:%M:%S",&tm);
+  return mktime(&tm);
+}
+
+int now(time_t epoch)
+{
+  return mktime(localtime(&epoch));
+}
 
 void initialize_transceiver(libusb_device_handle *handle,char *serial_num)
 {
@@ -231,6 +235,8 @@ printf("%d %d %d %d\n",rval[11],rval[10],rval[9],rval[8]);
   printf("...transceiver initialization done\n");
 }
 
+const size_t RX_BUFFER_LENGTH=21;
+unsigned char *RX_buffer=NULL;
 void setRX(libusb_device_handle *handle)
 {
   if (RX_buffer == NULL) {
@@ -311,6 +317,8 @@ printf("set state status: %d\n",status);
   next_sleep.tv_nsec=5000000;
 }
 
+const size_t TX_BUFFER_LENGTH=21;
+unsigned char *TX_buffer=NULL;
 void setTX(libusb_device_handle *handle)
 {
 // setTX
@@ -347,6 +355,7 @@ void close_mysql()
   mysql_close(&mysql);
 }
 
+unsigned char *state_buffer=NULL;
 int get_state(libusb_device_handle *handle)
 {
   if (state_buffer == NULL) {
@@ -387,6 +396,7 @@ void request_set_config(libusb_device_handle *handle,unsigned char *buffer,int f
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,buffer,12,1000);
 }
 
+unsigned char *msg_buffer=NULL;
 void request_weather_message(libusb_device_handle *handle,int action,int history_addr)
 {
   if (msg_buffer == NULL) {
@@ -428,6 +438,8 @@ void swap(unsigned char *buffer,int start,int stop)
   }
 }
 
+const size_t CONFIG_BUFFER_LENGTH=51;
+unsigned char *config_buffer=NULL;
 void store_config(libusb_device_handle *handle,unsigned char *buffer)
 {
   printf("***GETCONFIG***\n");
@@ -529,7 +541,7 @@ void set_time(libusb_device_handle *handle,unsigned char *buffer)
 }
 
 typedef struct {
-  float temp_out,dewp_out,wspd,wgust,rain_24hr,rain_1hr,barom;
+  float temp_out,dewp_out,wspd,wgust,rain_1hr,rain_total,barom;
   int rh_out,wdir;
 } CurrentWeather;
 CurrentWeather wx[2];
@@ -549,7 +561,11 @@ void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather)
   idum=((buffer[187] >> 4) << 20) | ((buffer[187] & 0xf) << 16) | ((buffer[188] >> 4) << 12) | ((buffer[188] & 0xf) << 8) | ((buffer[189] >> 4) << 4) | (buffer[189] & 0xf);
   current_weather->wgust=((idum/256.)/100.)/1.60934;
   current_weather->rain_1hr=((buffer[148] >> 4)*100000.+(buffer[148] & 0xf)*10000.+(buffer[149] >> 4)*1000.+(buffer[149] & 0xf)*100.+(buffer[150] >> 4)*10.+(buffer[150] & 0xf))/2540.;
-  current_weather->rain_24hr=((buffer[137] >> 4)*100000.+(buffer[137] & 0xf)*10000.+(buffer[138] >> 4)*1000.+(buffer[138] & 0xf)*100.+(buffer[139] >> 4)*10.+(buffer[139] & 0xf))/2540.;
+//  current_weather->rain_total=((buffer[156] & 0xf)*1000000.+(buffer[157] >> 4)*100000.+(buffer[157] & 0xf)*10000.+(buffer[158] >> 4)*1000.+(buffer[158] & 0xf)*100.+(buffer[159] >> 4)*10.+(buffer[159] & 0xf))/25400.;
+current_weather->rain_total=((buffer[156] & 0xf)*1000000.+(buffer[157] >> 4)*100000.+(buffer[157] & 0xf)*10000.+(buffer[158] >> 4)*1000.+(buffer[158] & 0xf)*100.+(buffer[159] >> 4)*10.+(buffer[159] & 0xf));
+printf("rain total: %.3f",current_weather->rain_total);
+current_weather->rain_total/=25400.;
+printf(" %.3f\n",current_weather->rain_total);
   current_weather->barom=((buffer[210] >> 4)*10000.+(buffer[210] & 0xf)*1000.+(buffer[211] >> 4)*100.+(buffer[211] & 0xf)*10.+(buffer[212] >> 4))/100.;
 }
 
@@ -592,6 +608,32 @@ void print_history(History *history)
   printf("latest: %d  this: %d, %s, %5.1f, %5.1f, %2d, %3d, %4.1f, %4.1f, %4.2f\n",history->latest_addr,history->this_addr,history->datetime,history->barom,history->temp_out,history->rh_out,history->wdir,history->wspd,history->wgust,history->rain_raw);
 }
 
+//const size_t HISTORY_SIZE=300;
+const size_t HISTORY_SIZE=60;
+History *history_queue=NULL;
+size_t curr_hidx=0,last_hidx=0;
+const char *HISTORY_INSERT="insert into wx.history values(%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update haddr = values(haddr)";
+char *store_buffer=NULL;
+void store_history_records()
+{
+  if (mysql_username != NULL && mysql_password != NULL) {
+    open_mysql();
+    if (store_buffer == NULL) {
+	store_buffer=(char *)malloc(256*sizeof(char));
+    }
+    for (size_t n=0; n < HISTORY_SIZE; ++n) {
+	for (size_t m=0; m < 256; ++m) {
+	  store_buffer[m]=0;
+	}
+	sprintf(store_buffer,HISTORY_INSERT,timestamp(history_queue[n].datetime),lround(history_queue[n].barom*10.),lround(history_queue[n].temp_out*10.),history_queue[n].rh_out,history_queue[n].wdir,lround(history_queue[n].wspd*10.),lround(history_queue[n].wgust*10.),lround(history_queue[n].rain_raw*100.),history_queue[n].this_addr);
+	mysql_query(&mysql,store_buffer);
+	printf("stored '%s'\n",store_buffer);
+    }
+    close_mysql();
+  }
+}
+
+
 int wx_changed()
 {
   int lwx_idx=1-cwx_idx;
@@ -616,6 +658,7 @@ int wx_changed()
   return 0;
 }
 
+int mdays[]={0,31,28,31,30,31,30,31,31,30,31,30,31};
 void get_utc_date(time_t epoch,struct tm **tm_result)
 {
   *tm_result=localtime(&epoch);
@@ -659,19 +702,177 @@ printf("\n");
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,buffer,12,1000);
 }
 
-int timestamp(char *datetime)
+char *insert_buffer=NULL,*url_buffer=NULL;
+const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
+void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfill_history)
 {
-  struct tm tm;
-  strptime(datetime,"%Y-%m-%d %H:%M:%S",&tm);
-  return mktime(&tm);
+//  printf("getframe: [%02x]",buffer[5]);
+//  for (size_t n=0; n < buffer[2]; ++n) {
+//    printf(" %02x",buffer[n]);
+//  }
+//  printf("\n");
+  if (cfg_cs[0] != 0x0 || cfg_cs[1] != 0x0 || buffer[5] == 0x40) {
+  }
+  else {
+    cfg_cs[0]=buffer[7];
+    cfg_cs[1]=buffer[8];
+  }
+  switch (buffer[5]) {
+    case 0x20:
+    {
+	printf("***DATAWRITTEN***\n");
+	setRX(handle);
+	break;
+    }
+    case 0x40:
+    {
+	store_config(handle,buffer);
+	break;
+    }
+    case 0x60:
+    {
+	if (!backfill_history) {
+	  cwx_idx=1-cwx_idx;
+	  decode_current_wx(&buffer[3],&wx[cwx_idx]);
+	  if (url_buffer == NULL) {
+	    url_buffer=(char *)malloc(4096*sizeof(char));
+	  }
+//	  printf("pressure: %.2fin\n",wx[cwx_idx].barom);
+//	  printf("outside temp: %.1fF\n",wx[cwx_idx].temp_out);
+//	  printf("outside dew point: %.1fF\n",wx[cwx_idx].dewp_out);
+//	  printf("outside RH: %d%%\n",wx[cwx_idx].rh_out);
+//	  printf("wind direction: %ddeg\n",wx[cwx_idx].wdir);
+//	  printf("wind speed: %.1fmph\n",wx[cwx_idx].wspd);
+//	  printf("wind gust: %.1fmph\n",wx[cwx_idx].wgust);
+//	  printf("1-hour rain: %.2fin\n",wx[cwx_idx].rain_1hr);
+//	  printf("total rain: %.2fin\n",wx[cwx_idx].rain_total);
+	  if (WU_station != NULL && WU_password != NULL) {
+	    time_t upload_time=time(NULL);
+	    if ( (upload_time-last_WU_upload_time) > 3) {
+		struct tm *tm_result;
+		get_utc_date(upload_time,&tm_result);
+		float computed_rain_day=rain_day;
+/*
+		if (rain_1hr_base < 0.) {
+		  rain_1hr_base=wx[cwx_idx].rain_1hr;
+		}
+		else {
+		  computed_rain_day+=(wx[cwx_idx].rain_1hr-rain_1hr_base);
+		}
+*/
+		sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+		curl_easy_perform(curl);
+	    }
+	    last_WU_upload_time=upload_time;
+	  }
+	}
+	request_weather_message(handle,0,latest_haddr);
+	first_sleep.tv_nsec=300000000;
+	next_sleep.tv_nsec=10000000;
+	break;
+    }
+    case 0x80:
+    {
+	if (!backfill_history) {
+	  if (curr_hidx == HISTORY_SIZE) {
+	    store_history_records();
+	    curr_hidx=0;
+	  }
+	}
+	decode_history(&buffer[3],&history_queue[curr_hidx]);
+	print_history(&history_queue[curr_hidx]);
+	if (!backfill_history) {
+	  if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
+	    if (history_queue[curr_hidx].this_addr != history_queue[last_hidx].this_addr) {
+		if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
+// if the day has changed, reset the daily rainfall to zero
+		  rain_day=0.;
+		}
+		else {
+// otherwise, increment the daily rainfall by the rain amount in the last
+//  history period
+		  rain_day+=history_queue[curr_hidx].rain_raw;
+		}
+		rain_1hr_base=wx[cwx_idx].rain_1hr;
+		last_hidx=curr_hidx;
+	    }
+            else {
+		  curr_hidx=last_hidx;
+	    }
+	    latest_haddr=history_queue[curr_hidx].this_addr;
+            ++curr_hidx;
+	  }
+	  if (!config_requested) {
+	    request_get_config(handle,buffer);
+	  }
+	  else {
+	    sleep(2);
+	    request_weather_message(handle,5,0xfffff);
+	  }
+	  first_sleep.tv_nsec=300000000;
+	  next_sleep.tv_nsec=10000000;
+	  break;
+	}
+	else {
+	  if (insert_buffer == NULL) {
+	    insert_buffer=(char *)malloc(256*sizeof(char));
+	  }
+	  for (size_t n=0; n < 256; ++n) {
+	    insert_buffer[n]=0;
+	  }
+	  sprintf(insert_buffer,HISTORY_INSERT,timestamp(history_queue[curr_hidx].datetime),lround(history_queue[curr_hidx].barom*10.),lround(history_queue[curr_hidx].temp_out*10.),history_queue[curr_hidx].rh_out,history_queue[curr_hidx].wdir,lround(history_queue[curr_hidx].wspd*10.),lround(history_queue[curr_hidx].wgust*10.),lround(history_queue[curr_hidx].rain_raw*100.),history_queue[curr_hidx].this_addr);
+	  mysql_query(&mysql,insert_buffer);
+	  latest_haddr=history_queue[curr_hidx].this_addr;
+	}
+    }
+    case 0xa1:
+    {
+/*
+// first config
+	buffer[0]=0xd5;
+	buffer[1]=0x0;
+	buffer[2]=0x9;
+	buffer[3]=0xf0;
+	buffer[4]=0xf0;
+// ask for a config message
+	buffer[5]=0x3;
+//	buffer[6]=data_buffer[7];
+//	buffer[7]=data_buffer[8];
+buffer[6]=0x0;
+buffer[7]=0x1b;
+	buffer[8]=(comm_interval >> 4) & 0xff;
+	int history_addr=0xffffff;
+	buffer[9]=(history_addr >> 16) & 0x0f | 16*(comm_interval & 0xf);
+	buffer[10]=(history_addr >> 8) & 0xff;
+	buffer[11]=(history_addr >> 0) & 0xff;
+	status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,data_buffer,273,1000);
+printf("first config status %d\n",status);
+*/
+	first_sleep.tv_nsec=85000000;
+	next_sleep.tv_nsec=5000000;
+	break;
+    }
+    case 0xa2:
+    {
+	set_config(handle);
+	break;
+    }
+    case 0xa3:
+    {
+	printf("***CLOCKMESSAGE***\n");
+	set_time(handle,buffer);
+	break;
+    }
+    default:
+    {
+	printf("***unhandled message type %02x\n",buffer[5]);
+    }
+  }
 }
 
-int now(time_t epoch)
-{
-  return mktime(localtime(&epoch));
-}
-
-void process_history_records(libusb_device_handle *handle,History *history)
+void backfill_history_records(libusb_device_handle *handle,History *history)
 {
   if (mysql_username != NULL && mysql_password != NULL) {
     open_mysql();
@@ -681,19 +882,20 @@ void process_history_records(libusb_device_handle *handle,History *history)
     unsigned char *data_buffer=(unsigned char *)malloc(273*sizeof(unsigned char));
     int status=mysql_query(&mysql,"select haddr from wx.history where timestamp in (select max(timestamp) from wx.history)");
     MYSQL_RES *result=mysql_use_result(&mysql);
-    int addr;
     if (result != NULL) {
 	MYSQL_ROW row;
 	while (row=mysql_fetch_row(result)) {
-	  addr=atoi(row[0]);
+	  latest_haddr=atoi(row[0]);
 	}
     }
     else {
-	addr=0xfffff;
+	latest_haddr=0xfffff;
     }
-    printf("last history address in the database: %d\n",addr);
+    printf("last history address in the database: %d\n",latest_haddr);
     mysql_free_result(result);
     size_t num_recs=0;
+    history->this_addr=latest_haddr-18;
+    history->latest_addr=latest_haddr;
     while (1) {
 	nanosleep(&first_sleep,NULL);
 	while (1) {
@@ -703,34 +905,17 @@ void process_history_records(libusb_device_handle *handle,History *history)
 	  nanosleep(&next_sleep,NULL);
 	}
 	int status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
-//	printf("getframe: [%02x]",data_buffer[5]);
-//	for (size_t n=0; n < data_buffer[2]; ++n) {
-//	  printf(" %02x",data_buffer[n]);
-//	}
-//	printf("\n");
-	if (cfg_cs[0] != 0x0 || cfg_cs[1] != 0x0 || data_buffer[5] == 0x40) {
-	}
-	else {
-	  cfg_cs[0]=data_buffer[7];
-	  cfg_cs[1]=data_buffer[8];
-	}
+	handle_frame(handle,data_buffer,1);
 	if (data_buffer[5] == 0x80) {
-	  decode_history(&data_buffer[3],history);
-	  print_history(history);
-	  for (size_t n=0; n < 256; ++n) {
-	    ibuf[n]=0;
-	  }
-	  sprintf(ibuf,HISTORY_INSERT,timestamp(history->datetime),lround(history->barom*10.),lround(history->temp_out*10.),history->rh_out,history->wdir,lround(history->wspd*10.),lround(history->wgust*10.),lround(history->rain_raw*100.),history->this_addr);
-	  mysql_query(&mysql,ibuf);
-	  addr=history->this_addr;
 	  ++num_recs;
-	  if (history->this_addr == history->latest_addr) {
-	    setTX(handle);
-	    break;
-	  }
 	}
-	request_weather_message(handle,0,addr);
+	if (history->this_addr != history->latest_addr) {
+	  request_weather_message(handle,0,latest_haddr);
+	}
 	setTX(handle);
+	if (history->this_addr == history->latest_addr) {
+	  break;
+	}
     }
     latest_haddr=history->latest_addr-18;
     for (size_t n=0; n < 256; ++n) {
@@ -756,33 +941,8 @@ printf("daily rain: %.2f\n",rain_day);
     printf("%d records processed in %d seconds\n",num_recs,(t2-t1));
     close_mysql();
     free(ibuf);
+    ++curr_hidx;
   }
-}
-
-
-const char *HISTORY_INSERT="insert into wx.history values(%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update haddr = values(haddr)";
-char *ibuf=NULL;
-void store_history_records(History *history_queue,size_t num_records)
-{
-  if (mysql_username != NULL && mysql_password != NULL) {
-    open_mysql();
-    if (ibuf == NULL) {
-	ibuf=(char *)malloc(256*sizeof(char));
-    }
-    for (size_t n=0; n < num_records; ++n) {
-	for (size_t m=0; m < 256; ++m) {
-	  ibuf[m]=0;
-	}
-	sprintf(ibuf,HISTORY_INSERT,timestamp(history_queue[n].datetime),lround(history_queue[n].barom*10.),lround(history_queue[n].temp_out*10.),history_queue[n].rh_out,history_queue[n].wdir,lround(history_queue[n].wspd*10.),lround(history_queue[n].wgust*10.),lround(history_queue[n].rain_raw*100.),history_queue[n].this_addr);
-	mysql_query(&mysql,ibuf);
-	printf("stored '%s'\n",ibuf);
-    }
-    close_mysql();
-  }
-}
-
-void handle_frame()
-{
 }
 
 char *trim(char *s)
@@ -867,221 +1027,78 @@ int main(int argc,char **argv)
     fprintf(stderr,"unable to initialize CURL\n");
     exit(1);
   }
-  CURL *curl=curl_easy_init();
+  curl=curl_easy_init();
   libusb_context *ctx;
   libusb_init(&ctx);
 //  libusb_set_debug(ctx,LIBUSB_LOG_LEVEL_DEBUG);
   libusb_device **list;
-  size_t num_devices;
-  num_devices=libusb_get_device_list(ctx,&list);
+  size_t num_devices=libusb_get_device_list(ctx,&list);
 printf("num devices: %d\n",num_devices);
-  for (size_t n=0; n < num_devices; ++n) {
+  size_t n=0;
+  for (n=0; n < num_devices; ++n) {
     struct libusb_device_descriptor desc;
     libusb_get_device_descriptor(list[n],&desc);
     if (desc.idVendor == 0x6666 && desc.idProduct == 0x5555) {
-	libusb_device_handle *handle;
-	int status;
-	status=libusb_open(list[n],&handle);
-	if (status != 0) {
-	  printf("unable to open: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	status=libusb_detach_kernel_driver(handle,0);
-	if (status != 0 && status != LIBUSB_ERROR_NOT_FOUND) {
-	  printf("unable to detach kernal driver: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	status=libusb_claim_interface(handle,0);
-	if (status != 0) {
-	  printf("unable to claim interface: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
+	break;
+    }
+  }
+  if (n != num_devices) {
+    libusb_device_handle *handle;
+    int status=libusb_open(list[n],&handle);
+    if (status != 0) {
+	printf("unable to open: %s\n",libusb_error_name(status));
+	exit(1);
+    }
+    status=libusb_detach_kernel_driver(handle,0);
+    if (status != 0 && status != LIBUSB_ERROR_NOT_FOUND) {
+	printf("unable to detach kernal driver: %s\n",libusb_error_name(status));
+	exit(1);
+    }
+    status=libusb_claim_interface(handle,0);
+    if (status != 0) {
+	printf("unable to claim interface: %s\n",libusb_error_name(status));
+	exit(1);
+    }
 printf("found! %d %d\n",n,status);
-	status=libusb_control_transfer(handle,0x21,0xa,0,0,NULL,0,1000);
+    status=libusb_control_transfer(handle,0x21,0xa,0,0,NULL,0,1000);
 printf("setup status: %d\n",status);
 
-	char serial_num[15];
-	initialize_transceiver(handle,serial_num);
-	do_setup(handle);
+    char serial_num[15];
+    initialize_transceiver(handle,serial_num);
+    do_setup(handle);
 
-	printf("ready to pair...\n");
-	char c;
-	scanf("%c",&c);
+    printf("ready to pair...\n");
 
-//	const size_t HISTORY_SIZE=300;
-const size_t HISTORY_SIZE=60;
-	History *history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
-	size_t curr_hidx=0,last_hidx=0;
-	process_history_records(handle,&history_queue[curr_hidx++]);
+    history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
+    backfill_history_records(handle,&history_queue[curr_hidx]);
 
-	unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
-	data_buffer[1]=0;
-	const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
-	char *ibuf=(char *)malloc(256*sizeof(char));
-	float rain_1hr_base=0.;
+    unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
+    data_buffer[1]=0;
+    const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
+    while (1) {
+	nanosleep(&first_sleep,NULL);
 	while (1) {
-	  nanosleep(&first_sleep,NULL);
-	  while (1) {
-	    if (get_state(handle) == 0x16) {
-		break;
-	    }
-	    nanosleep(&next_sleep,NULL);
+	  if (get_state(handle) == 0x16) {
+	    break;
 	  }
-	  status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
-//	  printf("getframe: [%02x]",data_buffer[5]);
-//	  for (size_t n=0; n < data_buffer[2]; ++n) {
-//	    printf(" %02x",data_buffer[n]);
-//	  }
-//	  printf("\n");
-	  if (cfg_cs[0] != 0x0 || cfg_cs[1] != 0x0 || data_buffer[5] == 0x40) {
-	  }
-	  else {
-	    cfg_cs[0]=data_buffer[7];
-	    cfg_cs[1]=data_buffer[8];
-	  }
-	  handle_frame();
-if (data_buffer[6] >= 0x5f || data_buffer[5] == 0x20) {
-	  switch (data_buffer[5]) {
-	    case 0x20:
-	    {
-		setRX(handle);
-		break;
-	    }
-	    case 0x40:
-	    {
-		store_config(handle,data_buffer);
-		break;
-	    }
-	    case 0x60:
-	    {
-		cwx_idx=1-cwx_idx;
-		decode_current_wx(&data_buffer[3],&wx[cwx_idx]);
-		if (url == NULL) {
-		  url=(char *)malloc(4096*sizeof(char));
-		}
-		for (size_t n=0; n < 256; ++n) {
-		  ibuf[n]=0;
-		}
-//		printf("pressure: %.2fin\n",wx[cwx_idx].barom);
-//		printf("outside temp: %.1fF\n",wx[cwx_idx].temp_out);
-//		printf("outside dew point: %.1fF\n",wx[cwx_idx].dewp_out);
-//		printf("outside RH: %d%%\n",wx[cwx_idx].rh_out);
-//		printf("wind direction: %ddeg\n",wx[cwx_idx].wdir);
-//		printf("wind speed: %.1fmph\n",wx[cwx_idx].wspd);
-//		printf("wind gust: %.1fmph\n",wx[cwx_idx].wgust);
-//		printf("1-hour rain: %.2fin\n",wx[cwx_idx].rain_1hr);
-//		printf("24-hour rain: %.2fin\n",wx[cwx_idx].rain_24hr);
-		if (WU_station != NULL && WU_password != NULL) {
-		  time_t t=time(NULL);
-		  struct tm *tm_result;
-		  get_utc_date(t,&tm_result);
-		  sprintf(url,URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,(rain_day+wx[cwx_idx].rain_1hr-rain_1hr_base),tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		  printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,(rain_day+wx[cwx_idx].rain_1hr-rain_1hr_base),tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		  curl_easy_setopt(curl,CURLOPT_URL,url);
-		  curl_easy_perform(curl);
-		}
-		request_weather_message(handle,0,latest_haddr);
-		first_sleep.tv_nsec=300000000;
-		next_sleep.tv_nsec=10000000;
-		break;
-	    }
-	    case 0x80:
-	    {
-		if (curr_hidx == HISTORY_SIZE) {
-		  store_history_records(history_queue,HISTORY_SIZE);
-		  curr_hidx=0;
-		}
-		decode_history(&data_buffer[3],&history_queue[curr_hidx]);
-		print_history(&history_queue[curr_hidx]);
-		if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
-		  if (strcmp(history_queue[curr_hidx].datetime,history_queue[last_hidx].datetime) != 0) {
-		    if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
-// if the day has changed, reset the daily rainfall to zero
-			rain_day=0.;
-		    }
-		    else {
-// otherwise, increment the daily rainfall by the rain amount in the last
-//  history period
-			rain_day+=history_queue[curr_hidx].rain_raw;
-		    }
-		    rain_1hr_base=wx[cwx_idx].rain_1hr;
-		    last_hidx=curr_hidx;
-		  }
-                  else {
-		    curr_hidx=last_hidx;
-		  }
-		  latest_haddr=history_queue[curr_hidx].this_addr;
-                  ++curr_hidx;
-		}
-		if (!config_requested) {
-		  request_get_config(handle,data_buffer);
-		}
-		else {
-		  sleep(2);
-		  request_weather_message(handle,5,0xfffff);
-		}
-		first_sleep.tv_nsec=300000000;
-		next_sleep.tv_nsec=10000000;
-		break;
-	    }
-	    case 0xa1:
-	    {
-/*
-// first config
-	    data_buffer[0]=0xd5;
-	    data_buffer[1]=0x0;
-	    data_buffer[2]=0x9;
-	    data_buffer[3]=0xf0;
-	    data_buffer[4]=0xf0;
-// ask for a config message
-	    data_buffer[5]=0x3;
-//	    data_buffer[6]=data_buffer[7];
-//	    data_buffer[7]=data_buffer[8];
-data_buffer[6]=0x0;
-data_buffer[7]=0x1b;
-	    data_buffer[8]=(comm_interval >> 4) & 0xff;
-	    int history_addr=0xffffff;
-	    data_buffer[9]=(history_addr >> 16) & 0x0f | 16*(comm_interval & 0xf);
-	    data_buffer[10]=(history_addr >> 8) & 0xff;
-	    data_buffer[11]=(history_addr >> 0) & 0xff;
-	    status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,data_buffer,273,1000);
-printf("first config status %d\n",status);
-*/
-		first_sleep.tv_nsec=85000000;
-		next_sleep.tv_nsec=5000000;
-		break;
-	    }
-	    case 0xa2:
-	    {
-		set_config(handle);
-		break;
-	    }
-	    case 0xa3:
-	    {
-		set_time(handle,data_buffer);
-		break;
-	    }
-	    default:
-	    {
-		printf("***unhandled message type %x\n",(int)data_buffer[5]);
-	    }
-	  }
-}
-	  setTX(handle);
+	  nanosleep(&next_sleep,NULL);
 	}
-
-	status=libusb_release_interface(handle,0);
-	if (status != 0) {
-	  printf("unable to release interface: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	status=libusb_attach_kernel_driver(handle,0);
-	if (status != 0) {
-	  printf("unable to attach kernal driver: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	libusb_close(handle);
+	status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
+	handle_frame(handle,data_buffer,0);
+	setTX(handle);
     }
+
+    status=libusb_release_interface(handle,0);
+    if (status != 0) {
+	printf("unable to release interface: %s\n",libusb_error_name(status));
+	exit(1);
+    }
+    status=libusb_attach_kernel_driver(handle,0);
+    if (status != 0) {
+	printf("unable to attach kernal driver: %s\n",libusb_error_name(status));
+	exit(1);
+    }
+    libusb_close(handle);
   }
   libusb_free_device_list(list,1);
   libusb_exit(ctx);
