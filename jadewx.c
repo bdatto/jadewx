@@ -16,7 +16,7 @@ int config_set=0,config_requested=0;
 unsigned char cfg_cs[2]={0,0};
 struct timespec first_sleep,next_sleep;
 int latest_haddr=0xfffff;
-float rain_day=-999.,rain_1hr_base=-999.;
+float rain_day=-999.,rain_total_base=-999.;
 CURL *curl=NULL;
 time_t last_WU_upload_time=0;
 
@@ -557,15 +557,21 @@ void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather)
     current_weather->wdir=360;
   }
   int idum=((buffer[172] >> 4) << 20) | ((buffer[172] & 0xf) << 16) | ((buffer[173] >> 4) << 12) | ((buffer[173] & 0xf) << 8) | ((buffer[174] >> 4) << 4) | (buffer[174] & 0xf);
-  current_weather->wspd=((idum/256.)/100.)/1.60934;
+  if (idum >= 0x470000) {
+    current_weather->wspd=-999.;
+  }
+  else {
+    current_weather->wspd=((idum/256.)/100.)/1.60934;
+  }
   idum=((buffer[187] >> 4) << 20) | ((buffer[187] & 0xf) << 16) | ((buffer[188] >> 4) << 12) | ((buffer[188] & 0xf) << 8) | ((buffer[189] >> 4) << 4) | (buffer[189] & 0xf);
-  current_weather->wgust=((idum/256.)/100.)/1.60934;
+  if (idum >= 0x470000) {
+    current_weather->wgust=-999.;
+  }
+  else {
+    current_weather->wgust=((idum/256.)/100.)/1.60934;
+  }
   current_weather->rain_1hr=((buffer[148] >> 4)*100000.+(buffer[148] & 0xf)*10000.+(buffer[149] >> 4)*1000.+(buffer[149] & 0xf)*100.+(buffer[150] >> 4)*10.+(buffer[150] & 0xf))/2540.;
-//  current_weather->rain_total=((buffer[156] & 0xf)*1000000.+(buffer[157] >> 4)*100000.+(buffer[157] & 0xf)*10000.+(buffer[158] >> 4)*1000.+(buffer[158] & 0xf)*100.+(buffer[159] >> 4)*10.+(buffer[159] & 0xf))/25400.;
-current_weather->rain_total=((buffer[156] & 0xf)*1000000.+(buffer[157] >> 4)*100000.+(buffer[157] & 0xf)*10000.+(buffer[158] >> 4)*1000.+(buffer[158] & 0xf)*100.+(buffer[159] >> 4)*10.+(buffer[159] & 0xf));
-printf("rain total: %.3f",current_weather->rain_total);
-current_weather->rain_total/=25400.;
-printf(" %.3f\n",current_weather->rain_total);
+  current_weather->rain_total=((buffer[156] & 0xf)*1000000.+(buffer[157] >> 4)*100000.+(buffer[157] & 0xf)*10000.+(buffer[158] >> 4)*1000.+(buffer[158] & 0xf)*100.+(buffer[159] >> 4)*10.+(buffer[159] & 0xf))/25800.;
   current_weather->barom=((buffer[210] >> 4)*10000.+(buffer[210] & 0xf)*1000.+(buffer[211] >> 4)*100.+(buffer[211] & 0xf)*10.+(buffer[212] >> 4))/100.;
 }
 
@@ -711,9 +717,7 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 //    printf(" %02x",buffer[n]);
 //  }
 //  printf("\n");
-  if (cfg_cs[0] != 0x0 || cfg_cs[1] != 0x0 || buffer[5] == 0x40) {
-  }
-  else {
+  if (cfg_cs[0] == 0x0 && cfg_cs[1] == 0x0 && buffer[5] == 0x40) {
     cfg_cs[0]=buffer[7];
     cfg_cs[1]=buffer[8];
   }
@@ -751,15 +755,11 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	    if ( (upload_time-last_WU_upload_time) > 3) {
 		struct tm *tm_result;
 		get_utc_date(upload_time,&tm_result);
-		float computed_rain_day=rain_day;
-/*
-		if (rain_1hr_base < 0.) {
-		  rain_1hr_base=wx[cwx_idx].rain_1hr;
+		if (rain_total_base < 0.) {
+		  rain_total_base=wx[cwx_idx].rain_total;
+		  printf("total rain set to: %.2f\n",rain_total_base);
 		}
-		else {
-		  computed_rain_day+=(wx[cwx_idx].rain_1hr-rain_1hr_base);
-		}
-*/
+		float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
 		sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
 		printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
 		curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
@@ -795,7 +795,7 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 //  history period
 		  rain_day+=history_queue[curr_hidx].rain_raw;
 		}
-		rain_1hr_base=wx[cwx_idx].rain_1hr;
+		rain_total_base+=history_queue[curr_hidx].rain_raw;
 		last_hidx=curr_hidx;
 	    }
             else {
@@ -936,7 +936,7 @@ printf("query: %s\n",ibuf);
 	  rain_day=atof(row[0]);
 	}
     }
-printf("daily rain: %.2f\n",rain_day);
+    printf("daily rain set to: %.2f\n",rain_day);
     time_t t2=time(NULL);
     printf("%d records processed in %d seconds\n",num_recs,(t2-t1));
     close_mysql();
