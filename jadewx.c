@@ -724,19 +724,19 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
     cfg_cs[0]=buffer[7];
     cfg_cs[1]=buffer[8];
   }
-  switch (buffer[5]) {
-    case 0x20:
+  switch (buffer[5] >> 4) {
+    case 0x2:
     {
 	printf("***DATAWRITTEN***\n");
 	setRX(handle);
 	break;
     }
-    case 0x40:
+    case 0x4:
     {
 	store_config(handle,buffer);
 	break;
     }
-    case 0x60:
+    case 0x6:
     {
 	if (!backfill_history) {
 	  cwx_idx=1-cwx_idx;
@@ -783,7 +783,7 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	next_sleep.tv_nsec=10000000;
 	break;
     }
-    case 0x80:
+    case 0x8:
     {
 	if (!backfill_history) {
 	  if (curr_hidx == HISTORY_SIZE) {
@@ -793,6 +793,9 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	}
 	decode_history(&buffer[3],&history_queue[curr_hidx]);
 	print_history(&history_queue[curr_hidx]);
+	if ( (buffer[5] & 0xf) != 0 && strncmp(&history_queue[curr_hidx].datetime[14],"00:00",5) == 0) {
+	  printf("***BATTERYSTATUS*** WS: %d  TEMP: %d  RAIN: %d  WIND: %d\n",(buffer[5] & 0x8),(buffer[5] & 0x4),(buffer[5] & 0x2),(buffer[5] & 0x1));
+	}
 	if (!backfill_history) {
 	  if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
 	    if (history_queue[curr_hidx].this_addr != history_queue[last_hidx].this_addr) {
@@ -843,8 +846,11 @@ request_set_config(handle,buffer,0);
 	  latest_haddr=history_queue[curr_hidx].this_addr;
 	}
     }
-    case 0xa1:
+    case 0xa:
     {
+	switch (buffer[5] & 0xf) {
+	  case 0x1:
+	  {
 /*
 // first config
 	buffer[0]=0xd5;
@@ -866,19 +872,22 @@ buffer[7]=0x1b;
 	status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,data_buffer,273,1000);
 printf("first config status %d\n",status);
 */
-	first_sleep.tv_nsec=85000000;
-	next_sleep.tv_nsec=5000000;
-	break;
-    }
-    case 0xa2:
-    {
-	set_config(handle);
-	break;
-    }
-    case 0xa3:
-    {
-	printf("***CLOCKMESSAGE***\n");
-	set_time(handle,buffer);
+	    first_sleep.tv_nsec=85000000;
+	    next_sleep.tv_nsec=5000000;
+	    break;
+	  }
+	  case 0x2:
+	  {
+	    set_config(handle);
+	    break;
+	  }
+	  case 0x3:
+	  {
+	    printf("***CLOCKMESSAGE***\n");
+	    set_time(handle,buffer);
+	    break;
+	  }
+	}
 	break;
     }
     default:
@@ -922,7 +931,7 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	}
 	int status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
 	handle_frame(handle,data_buffer,1);
-	if (data_buffer[5] == 0x80) {
+	if ( (data_buffer[5] >> 4) == 0x8) {
 	  ++num_recs;
 	}
 	if (history->this_addr != history->latest_addr) {
