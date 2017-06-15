@@ -585,15 +585,21 @@ typedef struct {
   int day_num;
 } History;
 
-void decode_history(unsigned char *buffer,History *history)
+int decode_history(unsigned char *buffer,History *history)
 {
 //  for (size_t n=0; n < 30; ++n) {
 //    printf(" %02x",buffer[n]);
 //  }
 //  printf("\n");
   history->latest_addr=(buffer[6] << 8 | buffer[7]) << 8 | buffer[8];
-  latest_haddr=history->latest_addr-18;
+  if (history->latest_addr > 32744) {
+    return 0;
+  }
   history->this_addr=(buffer[9] << 8 | buffer[10]) << 8 | buffer[11];
+  if (history->this_addr > 32744) {
+    return 0;
+  }
+  latest_haddr=history->latest_addr-18;
   history->temp_out=(((buffer[22] >> 4)*100.+(buffer[22] & 0xf)*10.+(buffer[23] >> 4))/10.-40.)*9./5.+32.;
   history->rh_out=(buffer[17] & 0xf)*10+(buffer[18] >> 4);
   history->wdir=lroundf((buffer[14] >> 4)*22.5);
@@ -609,6 +615,7 @@ void decode_history(unsigned char *buffer,History *history)
   history->day_num=(buffer[27] >> 4)*10+(buffer[27] & 0xf);
   sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),history->day_num,(buffer[28] >> 4)*10+(buffer[28] & 0xf),(buffer[29] >> 4)*10+(buffer[29] & 0xf));
   history->datetime[19]='\0';
+  return 1;
 }
 
 void print_history(History *history)
@@ -710,6 +717,26 @@ printf("\n");
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,buffer,12,1000);
 }
 
+void wait_for_message(libusb_device_handle *handle)
+{
+  time_t t1=time(NULL);
+  nanosleep(&first_sleep,NULL);
+  while (1) {
+    if (get_state(handle) == 0x16) {
+	break;
+    }
+    nanosleep(&next_sleep,NULL);
+    time_t t2=time(NULL);
+    if ( (t2-t1) > 30) {
+	struct tm *tm_t=localtime(&t2);
+	printf("***LOSTSYNC?*** 20%2d-%02d-%02d %02d:%02d\n",tm_t->tm_year-100,tm_t->tm_mon+1,tm_t->tm_mday,tm_t->tm_hour,tm_t->tm_min);
+	request_weather_message(handle,0,latest_haddr);
+	setTX(handle);
+	t1=t2;
+    }
+  }
+}
+
 char *insert_buffer=NULL,*url_buffer=NULL;
 const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
 const char *WU_UPLOAD_URL_NO_WIND_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
@@ -791,59 +818,60 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	    curr_hidx=0;
 	  }
 	}
-	decode_history(&buffer[3],&history_queue[curr_hidx]);
-	print_history(&history_queue[curr_hidx]);
-	if ( (buffer[5] & 0xf) != 0 && strncmp(&history_queue[curr_hidx].datetime[14],"00:00",5) == 0) {
-	  printf("***BATTERYSTATUS*** WS: %d  TEMP: %d  RAIN: %d  WIND: %d\n",(buffer[5] & 0x8),(buffer[5] & 0x4),(buffer[5] & 0x2),(buffer[5] & 0x1));
-	}
-	if (!backfill_history) {
-	  if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
-	    if (history_queue[curr_hidx].this_addr != history_queue[last_hidx].this_addr) {
-		if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
+	if (decode_history(&buffer[3],&history_queue[curr_hidx])) {
+	  print_history(&history_queue[curr_hidx]);
+	  if ( (buffer[5] & 0xf) != 0 && strncmp(&history_queue[curr_hidx].datetime[14],"00:00",5) == 0) {
+	    printf("***BATTERYSTATUS*** WS: %d  TEMP: %d  RAIN: %d  WIND: %d\n",(buffer[5] & 0x8),(buffer[5] & 0x4),(buffer[5] & 0x2),(buffer[5] & 0x1));
+	  }
+	  if (!backfill_history) {
+	    if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
+		if (history_queue[curr_hidx].this_addr != history_queue[last_hidx].this_addr) {
+		  if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
 // if the day has changed, reset the daily rainfall to zero
-		  rain_day=0.;
+		    rain_day=0.;
 // reset total rain base to the current total rain (eliminates -0 that happens
 //   for computed rain after nightly reset)
-		  rain_total_base=wx[cwx_idx].rain_total;
-		}
-		else {
+		    rain_total_base=wx[cwx_idx].rain_total;
+		  }
+		  else {
 // otherwise, increment the daily rainfall by the rain amount in the last
 //  history period
-		  rain_day+=history_queue[curr_hidx].rain_raw;
+		    rain_day+=history_queue[curr_hidx].rain_raw;
+		  }
+		  rain_total_base+=history_queue[curr_hidx].rain_raw;
+		  last_hidx=curr_hidx;
 		}
-		rain_total_base+=history_queue[curr_hidx].rain_raw;
-		last_hidx=curr_hidx;
-	    }
-            else {
+		else {
 		  curr_hidx=last_hidx;
+		}
+		latest_haddr=history_queue[curr_hidx].this_addr;
+		++curr_hidx;
 	    }
-	    latest_haddr=history_queue[curr_hidx].this_addr;
-            ++curr_hidx;
-	  }
-	  if (!config_requested) {
-	    request_get_config(handle,buffer);
-	  }
+	    if (!config_requested) {
+		request_get_config(handle,buffer);
+	    }
 else if (!config_set) {
 request_set_config(handle,buffer,0);
 }
+	    else {
+		sleep(2);
+		request_weather_message(handle,5,0xfffff);
+	    }
+	    first_sleep.tv_nsec=300000000;
+	    next_sleep.tv_nsec=10000000;
+	    break;
+	  }
 	  else {
-	    sleep(2);
-	    request_weather_message(handle,5,0xfffff);
+	    if (insert_buffer == NULL) {
+		insert_buffer=(char *)malloc(256*sizeof(char));
+	    }
+	    for (size_t n=0; n < 256; ++n) {
+		insert_buffer[n]=0;
+	    }
+	    sprintf(insert_buffer,HISTORY_INSERT,timestamp(history_queue[curr_hidx].datetime),lround(history_queue[curr_hidx].barom*10.),lround(history_queue[curr_hidx].temp_out*10.),history_queue[curr_hidx].rh_out,history_queue[curr_hidx].wdir,lround(history_queue[curr_hidx].wspd*10.),lround(history_queue[curr_hidx].wgust*10.),lround(history_queue[curr_hidx].rain_raw*100.),history_queue[curr_hidx].this_addr);
+	    mysql_query(&mysql,insert_buffer);
+	    latest_haddr=history_queue[curr_hidx].this_addr;
 	  }
-	  first_sleep.tv_nsec=300000000;
-	  next_sleep.tv_nsec=10000000;
-	  break;
-	}
-	else {
-	  if (insert_buffer == NULL) {
-	    insert_buffer=(char *)malloc(256*sizeof(char));
-	  }
-	  for (size_t n=0; n < 256; ++n) {
-	    insert_buffer[n]=0;
-	  }
-	  sprintf(insert_buffer,HISTORY_INSERT,timestamp(history_queue[curr_hidx].datetime),lround(history_queue[curr_hidx].barom*10.),lround(history_queue[curr_hidx].temp_out*10.),history_queue[curr_hidx].rh_out,history_queue[curr_hidx].wdir,lround(history_queue[curr_hidx].wspd*10.),lround(history_queue[curr_hidx].wgust*10.),lround(history_queue[curr_hidx].rain_raw*100.),history_queue[curr_hidx].this_addr);
-	  mysql_query(&mysql,insert_buffer);
-	  latest_haddr=history_queue[curr_hidx].this_addr;
 	}
     }
     case 0xa:
@@ -892,7 +920,11 @@ printf("first config status %d\n",status);
     }
     default:
     {
-	printf("***unhandled message type %02x\n",buffer[5]);
+	printf("***unhandled message type");
+	for (size_t n=0; n < 7; ++n) {
+	  printf(" %02x",buffer[n]);
+	}
+	printf("\n");
     }
   }
 }
@@ -922,13 +954,7 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     history->this_addr=latest_haddr-18;
     history->latest_addr=latest_haddr;
     while (1) {
-	nanosleep(&first_sleep,NULL);
-	while (1) {
-	  if (get_state(handle) == 0x16) {
-	    break;
-	  }
-	  nanosleep(&next_sleep,NULL);
-	}
+	wait_for_message(handle);
 	int status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
 	handle_frame(handle,data_buffer,1);
 	if ( (data_buffer[5] >> 4) == 0x8) {
@@ -1101,13 +1127,7 @@ printf("setup status: %d\n",status);
     data_buffer[1]=0;
     const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
     while (1) {
-	nanosleep(&first_sleep,NULL);
-	while (1) {
-	  if (get_state(handle) == 0x16) {
-	    break;
-	  }
-	  nanosleep(&next_sleep,NULL);
-	}
+	wait_for_message(handle);
 	status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
 	handle_frame(handle,data_buffer,0);
 	setTX(handle);
