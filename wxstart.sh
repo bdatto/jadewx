@@ -1,0 +1,1 @@
+/home/wx/wxstart.sh
