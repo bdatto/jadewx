@@ -10,15 +10,36 @@
 
 char *mysql_username=NULL,*mysql_password=NULL;
 char *WU_station=NULL,*WU_password=NULL;
-int deviceID;
-int comm_interval=10;
-int config_set=0,config_requested=0;
-unsigned char cfg_cs[2]={0,0};
-struct timespec first_sleep,next_sleep;
-int latest_haddr=0xfffff;
-float rain_day=-999.,rain_total_base=-999.;
+int WU_upload=0;
 CURL *curl=NULL;
-time_t last_WU_upload_time=0;
+int device_id;
+int comm_interval=10;
+int config_set,config_requested;
+unsigned char cfg_cs[2];
+struct timespec first_sleep,next_sleep;
+int latest_haddr;
+float rain_day,rain_total_base;
+time_t last_WU_upload_time;
+time_t last_history_print_time;
+char *compass[361]={
+"??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"NNE","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"NE","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"ENE","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"E","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"ESE","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"SE","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"ESE","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"S","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"SSW","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"SW","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"WSW","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"W","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"WNW","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"NW","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"NNW","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
+"N"
+};
 
 int timestamp(char *datetime)
 {
@@ -65,8 +86,8 @@ printf(" %02x",(int)buffer[n]);
 }
 printf("\n");
   sprintf(serial_num,"%02d%02d%02d%02d%02d%02d%02d",(int)buffer[4],(int)buffer[5],(int)buffer[6],(int)buffer[7],(int)buffer[8],(int)buffer[9],(int)buffer[10]);
-  deviceID=(buffer[9] << 8) | buffer[10];
-printf("serial num: %s  deviceID: %d (%04x)\n",serial_num,deviceID,deviceID);
+  device_id=(buffer[9] << 8) | buffer[10];
+printf("serial num: %s  device_id: %d (%04x)\n",serial_num,device_id,device_id);
 
   int addr[50],rval[50];
 // IFMODE
@@ -315,6 +336,15 @@ printf("set state status: %d\n",status);
   first_sleep.tv_nsec=85000000;
   next_sleep.tv_sec=0;
   next_sleep.tv_nsec=5000000;
+  config_set=0;
+  config_requested=0;
+  cfg_cs[0]=0;
+  cfg_cs[1]=0;
+  latest_haddr=0xfffff;
+  rain_day=-999.;
+  rain_total_base=-999.;
+  last_WU_upload_time=0;
+  last_history_print_time=0;
 }
 
 const size_t TX_BUFFER_LENGTH=21;
@@ -377,8 +407,8 @@ void request_set_config(libusb_device_handle *handle,unsigned char *buffer,int f
     buffer[4]=0xf0;
   }
   else {
-    buffer[3]=((deviceID >> 8) & 0xff);
-    buffer[4]=(deviceID & 0xff);
+    buffer[3]=((device_id >> 8) & 0xff);
+    buffer[4]=(device_id & 0xff);
   }
   buffer[5]=0x2;
   buffer[6]=cfg_cs[0];
@@ -408,8 +438,8 @@ void request_weather_message(libusb_device_handle *handle,int action,int history
   msg_buffer[0]=0xd5;
   msg_buffer[1]=0x0;
   msg_buffer[2]=0x9;
-  msg_buffer[3]=((deviceID >> 8) & 0xff);
-  msg_buffer[4]=(deviceID & 0xff);
+  msg_buffer[3]=((device_id >> 8) & 0xff);
+  msg_buffer[4]=(device_id & 0xff);
   msg_buffer[5]=action;
   msg_buffer[6]=cfg_cs[0];
   msg_buffer[7]=cfg_cs[1];
@@ -443,6 +473,7 @@ unsigned char *config_buffer=NULL;
 void store_config(libusb_device_handle *handle,unsigned char *buffer)
 {
   printf("***GETCONFIG***\n");
+buffer[9]=(buffer[9] & 0xf);
   int ocs=7;
   for (size_t n=0; n < CONFIG_BUFFER_LENGTH; ++n) {
     printf(" %02x",buffer[n]);
@@ -465,7 +496,7 @@ void store_config(libusb_device_handle *handle,unsigned char *buffer)
     swap(config_buffer,33,35);
     swap(config_buffer,36,40);
     swap(config_buffer,41,45);
-    config_buffer[9]=0x4;
+    config_buffer[9]=0x2;
 // set history interval to 1 minute
     config_buffer[32]=0x0;
     config_buffer[46]=0x10;
@@ -512,8 +543,8 @@ void set_time(libusb_device_handle *handle,unsigned char *buffer)
   buffer[0]=0xd5;
   buffer[1]=0x0;
   buffer[2]=0xc;
-  buffer[3]=((deviceID >> 8) & 0xff);
-  buffer[4]=(deviceID & 0xff);
+  buffer[3]=((device_id >> 8) & 0xff);
+  buffer[4]=(device_id & 0xff);
   buffer[5]=0xc0;
   cfg_cs[0]=buffer[7];
   cfg_cs[1]=buffer[8];
@@ -621,6 +652,7 @@ int decode_history(unsigned char *buffer,History *history)
 void print_history(History *history)
 {
   printf("latest: %d  this: %d, %s, %5.1f, %5.1f, %2d, %3d, %4.1f, %4.1f, %4.2f\n",history->latest_addr,history->this_addr,history->datetime,history->barom,history->temp_out,history->rh_out,history->wdir,history->wspd,history->wgust,history->rain_raw);
+  last_history_print_time=time(NULL);
 }
 
 //const size_t HISTORY_SIZE=300;
@@ -699,8 +731,8 @@ void request_get_config(libusb_device_handle *handle,unsigned char *buffer)
   buffer[0]=0xd5;
   buffer[1]=0x0;
   buffer[2]=0x9;
-  buffer[3]=((deviceID >> 8) & 0xff);
-  buffer[4]=(deviceID & 0xff);
+  buffer[3]=((device_id >> 8) & 0xff);
+  buffer[4]=(device_id & 0xff);
   buffer[5]=0x3;
   buffer[6]=cfg_cs[0];
   buffer[7]=cfg_cs[1];
@@ -791,16 +823,38 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 		}
 		float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
 //printf("rain report: %f %f %f %f\n",computed_rain_day,rain_day,wx[cwx_idx].rain_total,rain_total_base);
-		if (wx[cwx_idx].wspd >= 0.) {
-		  sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		  printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		if (WU_upload == 1) {
+		  if (wx[cwx_idx].wspd >= 0.) {
+		    sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		  }
+		  else {
+		    sprintf(url_buffer,WU_UPLOAD_URL_NO_WIND_FORMAT,WU_station,WU_password,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		  }
+		  curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+		  CURLcode ccode;
+		  if ( (ccode=curl_easy_perform(curl)) == 0) {
+		    if (wx[cwx_idx].wspd >= 0.) {
+			printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		    }
+		    else {
+			printf("WUupload (no wind) %d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		    }
+		  }
+		  else {
+		    printf("***WUupload failed for %04d-%02d-%02d %02d:%02d:%02d with code %d ",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,ccode);
+//printf("%s\n",url_buffer);
+		  }
 		}
 		else {
-		  sprintf(url_buffer,WU_UPLOAD_URL_NO_WIND_FORMAT,WU_station,WU_password,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		  printf("WUupload (no wind) %d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+printf("time start %d\n",time(NULL));
+		  FILE *fp;
+		  if ( (fp=fopen("/home/wx/current_wx.html","w")) != NULL) {
+		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul>%s at %.1f mph<br />Gusts to %.1f mph</ul><strong>Temperature:</strong> %.1f&deg;F<br /><strong>Dewpoint:</strong> %.1f&deg;F<br /><strong>Relative humidity:</strong> %d%<br /><strong>Barometer:</strong> %.2f in Hg<br /><strong>Rain:</strong><ul>One hour: %.2f in<br />Daily: %.2f in</ul></ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day);
+		    fclose(fp);
+		    system("scp -q /home/wx/current_wx.html pi@10.0.0.15:/home/pi/current_wx/");
+		  }
+printf("time end %d\n",time(NULL));
 		}
-		curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
-		curl_easy_perform(curl);
 	    }
 	    last_WU_upload_time=upload_time;
 	  }
@@ -820,8 +874,8 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	}
 	if (decode_history(&buffer[3],&history_queue[curr_hidx])) {
 	  print_history(&history_queue[curr_hidx]);
-	  if ( (buffer[5] & 0xf) != 0 && strncmp(&history_queue[curr_hidx].datetime[14],"00:00",5) == 0) {
-	    printf("***BATTERYSTATUS*** WS: %d  TEMP: %d  RAIN: %d  WIND: %d\n",(buffer[5] & 0x8),(buffer[5] & 0x4),(buffer[5] & 0x2),(buffer[5] & 0x1));
+	  if ( (buffer[5] & 0xf) != 0) {
+	    printf("***LOW BATTERY*** Console: %d  Temp/Hum: %d  Rain: %d  Wind: %d\n",( (buffer[5] & 0x8) == 0x8),( (buffer[5] & 0x4) == 0x4),( (buffer[5] & 0x2) == 0x2),( (buffer[5] & 0x1) == 0x1));
 	  }
 	  if (!backfill_history) {
 	    if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
@@ -851,6 +905,7 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 		request_get_config(handle,buffer);
 	    }
 else if (!config_set) {
+printf("request config?\n");
 request_set_config(handle,buffer,0);
 }
 	    else {
@@ -1063,11 +1118,23 @@ void read_config()
 		  strcpy(WU_station,tvalue);
 		}
 	    }
+	    else if (strcmp(tname,"do_upload") == 0) {
+		if (strcmp(section,"Wunderground") == 0) {
+		  if (strcmp(tvalue,"true") == 0) {
+		    WU_upload=1;
+		  }
+		}
+	    }
 	  }
 	}
     }
   }
   fclose(fp);
+}
+
+size_t handle_curl_response(char *ptr,size_t size,size_t nmemb,void *userdata)
+{
+  return size*nmemb;
 }
 
 int main(int argc,char **argv)
@@ -1079,73 +1146,83 @@ int main(int argc,char **argv)
     exit(1);
   }
   curl=curl_easy_init();
-  libusb_context *ctx;
-  libusb_init(&ctx);
-//  libusb_set_debug(ctx,LIBUSB_LOG_LEVEL_DEBUG);
-  libusb_device **list;
-  size_t num_devices=libusb_get_device_list(ctx,&list);
+  curl_easy_setopt(curl,CURLOPT_TIMEOUT,15);
+  curl_easy_setopt(curl,CURLOPT_WRITEFUNCTION,handle_curl_response);
+  while (1) {
+    libusb_context *ctx;
+    libusb_init(&ctx);
+//    libusb_set_debug(ctx,LIBUSB_LOG_LEVEL_DEBUG);
+    libusb_device **list;
+    size_t num_devices=libusb_get_device_list(ctx,&list);
 printf("num devices: %d\n",num_devices);
-  size_t n=0;
-  for (n=0; n < num_devices; ++n) {
-    struct libusb_device_descriptor desc;
-    libusb_get_device_descriptor(list[n],&desc);
-    if (desc.idVendor == 0x6666 && desc.idProduct == 0x5555) {
-	break;
+    size_t n=0;
+    for (n=0; n < num_devices; ++n) {
+	struct libusb_device_descriptor desc;
+	libusb_get_device_descriptor(list[n],&desc);
+	if (desc.idVendor == 0x6666 && desc.idProduct == 0x5555) {
+	  break;
+	}
     }
-  }
-  if (n != num_devices) {
-    libusb_device_handle *handle;
-    int status=libusb_open(list[n],&handle);
-    if (status != 0) {
-	printf("unable to open: %s\n",libusb_error_name(status));
-	exit(1);
-    }
-    status=libusb_detach_kernel_driver(handle,0);
-    if (status != 0 && status != LIBUSB_ERROR_NOT_FOUND) {
-	printf("unable to detach kernal driver: %s\n",libusb_error_name(status));
-	exit(1);
-    }
-    status=libusb_claim_interface(handle,0);
-    if (status != 0) {
-	printf("unable to claim interface: %s\n",libusb_error_name(status));
-	exit(1);
-    }
+    if (n != num_devices) {
+	libusb_device_handle *handle;
+	int status=libusb_open(list[n],&handle);
+	if (status != 0) {
+	  printf("unable to open: %s\n",libusb_error_name(status));
+	  exit(1);
+	}
+	status=libusb_detach_kernel_driver(handle,0);
+	if (status != 0 && status != LIBUSB_ERROR_NOT_FOUND) {
+	  printf("unable to detach kernal driver: %s\n",libusb_error_name(status));
+	  exit(1);
+	}
+	status=libusb_claim_interface(handle,0);
+	if (status != 0) {
+	  printf("unable to claim interface: %s\n",libusb_error_name(status));
+	  exit(1);
+	}
 printf("found! %d %d\n",n,status);
-    status=libusb_control_transfer(handle,0x21,0xa,0,0,NULL,0,1000);
+	status=libusb_control_transfer(handle,0x21,0xa,0,0,NULL,0,1000);
 printf("setup status: %d\n",status);
 
-    char serial_num[15];
-    initialize_transceiver(handle,serial_num);
-    do_setup(handle);
+	char serial_num[15];
+	initialize_transceiver(handle,serial_num);
+	do_setup(handle);
 
-    printf("ready to pair...\n");
+	printf("ready to pair...\n");
 
-    history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
-    backfill_history_records(handle,&history_queue[curr_hidx]);
+	history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
+	backfill_history_records(handle,&history_queue[curr_hidx]);
 
-    unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
-    data_buffer[1]=0;
-    const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
-    while (1) {
-	wait_for_message(handle);
-	status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
-	handle_frame(handle,data_buffer,0);
-	setTX(handle);
+	unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
+	data_buffer[1]=0;
+	const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
+	while (1) {
+	  wait_for_message(handle);
+	  status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
+	  handle_frame(handle,data_buffer,0);
+	  if ( (time(NULL)-last_history_print_time) > 300) {
+	    printf("***TRYING TO RE-SYNC...***\n");
+	    break;
+	  }
+	  else {
+	    setTX(handle);
+	  }
+	}
+
+	status=libusb_release_interface(handle,0);
+	if (status != 0) {
+	  printf("unable to release interface: %s\n",libusb_error_name(status));
+	  exit(1);
+	}
+	status=libusb_attach_kernel_driver(handle,0);
+	if (status != 0) {
+	  printf("unable to attach kernal driver: %s\n",libusb_error_name(status));
+	  exit(1);
+	}
+	libusb_close(handle);
     }
-
-    status=libusb_release_interface(handle,0);
-    if (status != 0) {
-	printf("unable to release interface: %s\n",libusb_error_name(status));
-	exit(1);
-    }
-    status=libusb_attach_kernel_driver(handle,0);
-    if (status != 0) {
-	printf("unable to attach kernal driver: %s\n",libusb_error_name(status));
-	exit(1);
-    }
-    libusb_close(handle);
+    libusb_free_device_list(list,1);
+    libusb_exit(ctx);
   }
-  libusb_free_device_list(list,1);
-  libusb_exit(ctx);
   curl_easy_cleanup(curl);
 }
