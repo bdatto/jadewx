@@ -7,6 +7,7 @@
 #include <math.h>
 #include <curl/curl.h>
 #include <mysql/mysql.h>
+#include <pthread.h>
 
 char *mysql_username=NULL,*mysql_password=NULL;
 char *WU_station=NULL,*WU_password=NULL;
@@ -769,6 +770,12 @@ void wait_for_message(libusb_device_handle *handle)
   }
 }
 
+void *thread_scp(void *ts)
+{
+  system("scp -q /home/wx/current_wx.html pi@10.0.0.15:/home/pi/current_wx/");
+  return NULL;
+}
+
 char *insert_buffer=NULL,*url_buffer=NULL;
 const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
 const char *WU_UPLOAD_URL_NO_WIND_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
@@ -824,6 +831,10 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 		float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
 //printf("rain report: %f %f %f %f\n",computed_rain_day,rain_day,wx[cwx_idx].rain_total,rain_total_base);
 		if (WU_upload == 1) {
+/*
+struct timespec t1,t2;
+clock_gettime(CLOCK_MONOTONIC,&t1);
+*/
 		  if (wx[cwx_idx].wspd >= 0.) {
 		    sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,WU_station,WU_password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
 		  }
@@ -844,16 +855,28 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 		    printf("***WUupload failed for %04d-%02d-%02d %02d:%02d:%02d with code %d ",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,ccode);
 //printf("%s\n",url_buffer);
 		  }
+/*
+clock_gettime(CLOCK_MONOTONIC,&t2);
+printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_nsec/1000000000.,t1.tv_sec,t1.tv_nsec,t2.tv_sec,t2.tv_nsec);
+*/
 		}
 		else {
-printf("time start %d\n",time(NULL));
+/*
+struct timespec t1,t2;
+clock_gettime(CLOCK_MONOTONIC,&t1);
+*/
 		  FILE *fp;
 		  if ( (fp=fopen("/home/wx/current_wx.html","w")) != NULL) {
 		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul>%s at %.1f mph<br />Gusts to %.1f mph</ul><strong>Temperature:</strong> %.1f&deg;F<br /><strong>Dewpoint:</strong> %.1f&deg;F<br /><strong>Relative humidity:</strong> %d%<br /><strong>Barometer:</strong> %.2f in Hg<br /><strong>Rain:</strong><ul>One hour: %.2f in<br />Daily: %.2f in</ul></ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day);
 		    fclose(fp);
-		    system("scp -q /home/wx/current_wx.html pi@10.0.0.15:/home/pi/current_wx/");
+		    pthread_t tid;
+		    pthread_attr_t attr;
+		    pthread_create(&tid,&attr,thread_scp,NULL);
 		  }
-printf("time end %d\n",time(NULL));
+/*
+clock_gettime(CLOCK_MONOTONIC,&t2);
+printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_nsec/1000000000.,t1.tv_sec,t1.tv_nsec,t2.tv_sec,t2.tv_nsec);
+*/
 		}
 	    }
 	    last_WU_upload_time=upload_time;
