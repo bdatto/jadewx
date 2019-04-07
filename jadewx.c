@@ -800,6 +800,10 @@ void *thread_scp(void *ts)
   return NULL;
 }
 
+char *colors[3]={"black","blue","red"};
+struct {
+  short temp_out,dewp_out,rh_out,wdir,wspd,wgust,barom,rain_1hr;
+} color_indexes;
 char *insert_buffer=NULL,*url_buffer=NULL;
 const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
 const char *WU_UPLOAD_URL_NO_WIND_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
@@ -891,7 +895,15 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 */
 		  FILE *fp;
 		  if ( (fp=fopen("/home/wx/current_wx.html","w")) != NULL) {
-		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul>%s at %.1f mph<br />Gusts to %.1f mph</ul><strong>Temperature:</strong> %.1f&deg;F<br /><strong>Dewpoint:</strong> %.1f&deg;F<br /><strong>Relative humidity:</strong> %d%<br /><strong>Barometer:</strong> %.2f in Hg<br /><strong>Rain:</strong><ul>One hour: %.2f in<br />Daily: %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Max temperature:</strong> %.1f&deg;F<br /><strong>Min temperature:</strong> %.1f&deg;F<br /><strong>Max wind speed:</strong> %.1f mph<br /><strong>Max wind gust:</strong> %.1f mph<br /><strong>Max barometer:</strong> %.2f in Hg<br /><strong>Min barometer:</strong> %.2f in Hg</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_min,extremes.wspd_max,extremes.wgust_max,extremes.barom_max*0.02953,extremes.barom_min*0.02953);
+		    color_indexes.temp_out= (wx[cwx_idx].temp_out > wx[1-cwx_idx].temp_out) ? 2 : (wx[cwx_idx].temp_out < wx[1-cwx_idx].temp_out) ? 1 : 0;
+		    color_indexes.dewp_out= (wx[cwx_idx].dewp_out > wx[1-cwx_idx].dewp_out) ? 2 : (wx[cwx_idx].dewp_out < wx[1-cwx_idx].dewp_out) ? 1 : 0;
+		    color_indexes.rh_out= (wx[cwx_idx].rh_out > wx[1-cwx_idx].rh_out) ? 2 : (wx[cwx_idx].rh_out < wx[1-cwx_idx].rh_out) ? 1 : 0;
+		    color_indexes.wdir= (wx[cwx_idx].wdir > wx[1-cwx_idx].wdir) ? 2 : (wx[cwx_idx].wdir < wx[1-cwx_idx].wdir) ? 1 : 0;
+		    color_indexes.wspd= (wx[cwx_idx].wspd > wx[1-cwx_idx].wspd) ? 2 : (wx[cwx_idx].wspd < wx[1-cwx_idx].wspd) ? 1 : 0;
+		    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
+		    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
+		    color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
+		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</n>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul>One hour: <span style=\"color: %s\">%.2f</span> in<br />Daily: %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Max temperature:</strong> %.1f&deg;F<br /><strong>Min temperature:</strong> %.1f&deg;F<br /><strong>Max wind speed:</strong> %.1f mph<br /><strong>Max wind gust:</strong> %.1f mph<br /><strong>Max barometer:</strong> %.2f in Hg<br /><strong>Min barometer:</strong> %.2f in Hg</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_min,extremes.wspd_max,extremes.wgust_max,extremes.barom_max*0.02953,extremes.barom_min*0.02953);
 		    fclose(fp);
 		    if (tid != 0xffffffff) {
 			pthread_join(tid,NULL);
