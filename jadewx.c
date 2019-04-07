@@ -870,8 +870,10 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul>%s at %.1f mph<br />Gusts to %.1f mph</ul><strong>Temperature:</strong> %.1f&deg;F<br /><strong>Dewpoint:</strong> %.1f&deg;F<br /><strong>Relative humidity:</strong> %d%<br /><strong>Barometer:</strong> %.2f in Hg<br /><strong>Rain:</strong><ul>One hour: %.2f in<br />Daily: %.2f in</ul></ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day);
 		    fclose(fp);
 		    pthread_t tid;
-		    pthread_attr_t attr;
-		    pthread_create(&tid,&attr,thread_scp,NULL);
+		    int status;
+		    if ( (status=pthread_create(&tid,NULL,thread_scp,NULL)) != 0) {
+			printf("thread creation error: %d\n",status);
+		    }
 		  }
 /*
 clock_gettime(CLOCK_MONOTONIC,&t2);
