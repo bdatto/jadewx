@@ -41,6 +41,9 @@ char *compass[361]={
 "NNW","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??","??",
 "N"
 };
+struct {
+  float temp_out_max,temp_out_min,wspd_max,wgust_max,barom_min,barom_max;
+} extremes;
 pthread_t tid=0xffffffff;
 
 int timestamp(char *datetime)
@@ -643,11 +646,31 @@ int decode_history(unsigned char *buffer,History *history)
   history->wspd=idum/10.*2.237;
   idum=(buffer[12] & 0xf) << 8 | buffer[13];
   history->wgust=idum/10.*2.237;
+  if (history->wgust < 114. && history->wgust > extremes.wgust_max) {
+    extremes.wgust_max=history->wgust;
+  }
   history->rain_raw=((buffer[16] >> 4)*100.+(buffer[16] & 0xf)*10.+(buffer[17] >> 4))/100.;
   history->barom=((buffer[19] & 0xf)*10000.+(buffer[20] >> 4)*1000.+(buffer[20] & 0xf)*100.+(buffer[21] >> 4)*10.+(buffer[21] & 0xf))/10.;
   history->day_num=(buffer[27] >> 4)*10+(buffer[27] & 0xf);
   sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),history->day_num,(buffer[28] >> 4)*10+(buffer[28] & 0xf),(buffer[29] >> 4)*10+(buffer[29] & 0xf));
   history->datetime[19]='\0';
+  if (history->this_addr <= history->latest_addr) {
+    if (history->temp_out > extremes.temp_out_max) {
+	extremes.temp_out_max=history->temp_out;
+    }
+    if (history->temp_out < extremes.temp_out_min) {
+	extremes.temp_out_min=history->temp_out;
+    }
+    if (history->wspd < 114. && history->wspd > extremes.wspd_max) {
+	extremes.wspd_max=history->wspd;
+    }
+    if (history->barom > extremes.barom_max) {
+	extremes.barom_max=history->barom;
+    }
+    if (history->barom < extremes.barom_min) {
+	extremes.barom_min=history->barom;
+    }
+  }
   return 1;
 }
 
@@ -868,7 +891,7 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 */
 		  FILE *fp;
 		  if ( (fp=fopen("/home/wx/current_wx.html","w")) != NULL) {
-		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul>%s at %.1f mph<br />Gusts to %.1f mph</ul><strong>Temperature:</strong> %.1f&deg;F<br /><strong>Dewpoint:</strong> %.1f&deg;F<br /><strong>Relative humidity:</strong> %d%<br /><strong>Barometer:</strong> %.2f in Hg<br /><strong>Rain:</strong><ul>One hour: %.2f in<br />Daily: %.2f in</ul></ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day);
+		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul>%s at %.1f mph<br />Gusts to %.1f mph</ul><strong>Temperature:</strong> %.1f&deg;F<br /><strong>Dewpoint:</strong> %.1f&deg;F<br /><strong>Relative humidity:</strong> %d%<br /><strong>Barometer:</strong> %.2f in Hg<br /><strong>Rain:</strong><ul>One hour: %.2f in<br />Daily: %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Max temperature:</strong> %.1f&deg;F<br /><strong>Min temperature:</strong> %.1f&deg;F<br /><strong>Max wind speed:</strong> %.1f mph<br /><strong>Max wind gust:</strong> %.1f mph<br /><strong>Max barometer:</strong> %.2f in Hg<br /><strong>Min barometer:</strong> %.2f in Hg</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_min,extremes.wspd_max,extremes.wgust_max,extremes.barom_max*0.02953,extremes.barom_min*0.02953);
 		    fclose(fp);
 		    if (tid != 0xffffffff) {
 			pthread_join(tid,NULL);
@@ -1033,6 +1056,48 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     }
     printf("last history address in the database: %d\n",latest_haddr);
     mysql_free_result(result);
+    time_t t=time(NULL);
+    struct tm *now=localtime(&t);
+    char datetime[20];
+    if (now->tm_hour >= 18) {
+	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",now->tm_year-100,now->tm_mon+1,now->tm_mday);
+    }
+    else {
+	t-=86400;
+	struct tm *yesterday=localtime(&t);
+	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",yesterday->tm_year-100,yesterday->tm_mon+1,yesterday->tm_mday);
+    }
+    datetime[19]='\0';
+    for (size_t n=0; n < 256; ++n) {
+	ibuf[n]=0;
+    }
+    sprintf(ibuf,"select max(i_temp_out),min(i_temp_out),max(i_press),min(i_press) from wx.history where timestamp > %d",timestamp(datetime));
+printf("%s\n",ibuf);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	row=mysql_fetch_row(result);
+	extremes.temp_out_max=atof(row[0])/10.;
+	extremes.temp_out_min=atof(row[1])/10.;
+	extremes.barom_max=atof(row[2])/10.;
+	extremes.barom_min=atof(row[3])/10.;
+    }
+    mysql_free_result(result);
+    for (size_t n=0; n < 256; ++n) {
+	ibuf[n]=0;
+    }
+    sprintf(ibuf,"select max(i_windspd),max(i_windgust) from wx.history where timestamp > %d and i_windspd != 1141",timestamp(datetime));
+printf("%s\n",ibuf);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	row=mysql_fetch_row(result);
+	extremes.wspd_max=atof(row[0])/10.;
+	extremes.wgust_max=atof(row[1])/10.;
+    }
+    mysql_free_result(result);
     size_t num_recs=0;
     history->this_addr=latest_haddr-18;
     history->latest_addr=latest_haddr;
@@ -1055,12 +1120,10 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     for (size_t n=0; n < 256; ++n) {
 	ibuf[n]=0;
     }
-    time_t t=time(NULL);
-    struct tm *tm_t=localtime(&t);
     char midnight[20];
-    sprintf(midnight,"20%02d-%02d-%02d 00:00:00",tm_t->tm_year-100,tm_t->tm_mon+1,tm_t->tm_mday);
+    sprintf(midnight,"20%02d-%02d-%02d 00:00:00",now->tm_year-100,now->tm_mon+1,now->tm_mday);
     midnight[19]='\0';
-    sprintf(ibuf,"select sum(i_rain)/100. from wx.history where timestamp > %d and timestamp <= %d",timestamp(midnight),now(t));
+    sprintf(ibuf,"select sum(i_rain)/100. from wx.history where timestamp > %d and timestamp <= %d",timestamp(midnight),t);
 printf("query: %s\n",ibuf);
     mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
@@ -1071,6 +1134,7 @@ printf("query: %s\n",ibuf);
 	}
     }
     printf("daily rain set to: %.2f\n",rain_day);
+    mysql_free_result(result);
     time_t t2=time(NULL);
     printf("%d records processed in %d seconds\n",num_recs,(t2-t1));
     close_mysql();
