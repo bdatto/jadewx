@@ -42,7 +42,8 @@ char *compass[361]={
 "N"
 };
 struct {
-  float temp_out_max,temp_out_min,wspd_max,wgust_max,barom_min,barom_max;
+  float temp_out_max,temp_out_min,wspd_max,wgust_max,barom_max,barom_min;
+  char temp_out_max_time[9],temp_out_min_time[9],wspd_max_time[9],wgust_max_time[9],barom_max_time[9],barom_min_time[9];
 } extremes;
 pthread_t tid=0xffffffff;
 
@@ -664,21 +665,27 @@ int decode_history(unsigned char *buffer,History *history)
   if (history->this_addr <= history->latest_addr) {
     if (history->temp_out > extremes.temp_out_max) {
 	extremes.temp_out_max=history->temp_out;
+	strcpy(extremes.temp_out_max_time,&history->datetime[11]);
     }
     if (history->temp_out < extremes.temp_out_min) {
 	extremes.temp_out_min=history->temp_out;
+	strcpy(extremes.temp_out_min_time,&history->datetime[11]);
     }
     if (history->wspd < 114. && history->wspd > extremes.wspd_max) {
 	extremes.wspd_max=history->wspd;
+	strcpy(extremes.wspd_max_time,&history->datetime[11]);
     }
     if (history->wgust < 114. && history->wgust > extremes.wgust_max) {
 	extremes.wgust_max=history->wgust;
+	strcpy(extremes.wgust_max_time,&history->datetime[11]);
     }
     if (history->barom > extremes.barom_max) {
 	extremes.barom_max=history->barom;
+	strcpy(extremes.barom_max_time,&history->datetime[11]);
     }
     if (history->barom < extremes.barom_min) {
 	extremes.barom_min=history->barom;
+	strcpy(extremes.barom_min_time,&history->datetime[11]);
     }
   }
   return 1;
@@ -919,7 +926,7 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 		    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
 		    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
 		    color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
-		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Max temperature:</strong> %.1f&deg;F<br /><strong>Min temperature:</strong> %.1f&deg;F<br /><strong>Max wind speed:</strong> %.1f mph<br /><strong>Max wind gust:</strong> %.1f mph<br /><strong>Max barometer:</strong> %.2f in Hg<br /><strong>Min barometer:</strong> %.2f in Hg</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_min,extremes.wspd_max,extremes.wgust_max,extremes.barom_max*0.02953,extremes.barom_min*0.02953);
+		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
 		    fclose(fp);
 		    if (tid != 0xffffffff) {
 			pthread_join(tid,NULL);
@@ -1069,7 +1076,8 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     open_mysql();
     time_t t1=time(NULL);
     const char *HISTORY_INSERT="insert into wx.history values(%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update haddr = values(haddr)";
-    char *ibuf=(char *)malloc(256*sizeof(char));
+    const size_t IBUF_LEN=32768;
+    char *ibuf=(char *)malloc(IBUF_LEN*sizeof(char));
     unsigned char *data_buffer=(unsigned char *)malloc(273*sizeof(unsigned char));
     int status=mysql_query(&mysql,"select haddr from wx.history where timestamp in (select max(timestamp) from wx.history)");
     MYSQL_RES *result=mysql_use_result(&mysql);
@@ -1078,12 +1086,12 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	while (row=mysql_fetch_row(result)) {
 	  latest_haddr=atoi(row[0]);
 	}
+	mysql_free_result(result);
     }
     else {
 	latest_haddr=0xfffff;
     }
     printf("last history address in the database: %d\n",latest_haddr);
-    mysql_free_result(result);
     time_t t=time(NULL);
     struct tm *now=localtime(&t);
     char datetime[20];
@@ -1096,36 +1104,79 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",yesterday->tm_year-100,yesterday->tm_mon+1,yesterday->tm_mday);
     }
     datetime[19]='\0';
-    for (size_t n=0; n < 256; ++n) {
-	ibuf[n]=0;
-    }
-    sprintf(ibuf,"select max(i_temp_out),min(i_temp_out),max(i_press),min(i_press) from wx.history where timestamp > %d",timestamp(datetime));
-printf("%s\n",ibuf);
+    int tstamp=timestamp(datetime);
+// fill maximum temperature for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select i_temp_out as val,timestamp as time from wx.history where timestamp > %d) as a left join (select max(i_temp_out) as val from wx.history where timestamp > %d) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
 	row=mysql_fetch_row(result);
 	extremes.temp_out_max=atof(row[0])/10.;
-	extremes.temp_out_min=atof(row[1])/10.;
-	extremes.barom_max=atof(row[2])/10.;
-	extremes.barom_min=atof(row[3])/10.;
+	strcpy(extremes.temp_out_max_time,&row[1][11]);
+	mysql_free_result(result);
     }
-    mysql_free_result(result);
-    for (size_t n=0; n < 256; ++n) {
-	ibuf[n]=0;
+// fill minimum temperature for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select i_temp_out as val,timestamp as time from wx.history where timestamp > %d) as a left join (select min(i_temp_out) as val from wx.history where timestamp > %d) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	row=mysql_fetch_row(result);
+	extremes.temp_out_min=atof(row[0])/10.;
+	strcpy(extremes.temp_out_min_time,&row[1][11]);
+	mysql_free_result(result);
     }
-    sprintf(ibuf,"select max(i_windspd),max(i_windgust) from wx.history where timestamp > %d and i_windspd != 1141",timestamp(datetime));
-printf("%s\n",ibuf);
+// fill maximum wind speed for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select i_windspd as val,timestamp as time from wx.history where timestamp > %d) as a left join (select max(i_windspd) as val from wx.history where timestamp > %d and i_windspd != 1141) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
 	row=mysql_fetch_row(result);
 	extremes.wspd_max=atof(row[0])/10.;
-	extremes.wgust_max=atof(row[1])/10.;
+	strcpy(extremes.wspd_max_time,&row[1][11]);
+	mysql_free_result(result);
     }
-    mysql_free_result(result);
+// fill maximum wind gust for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select i_windgust as val,timestamp as time from wx.history where timestamp > %d) as a left join (select max(i_windgust) as val from wx.history where timestamp > %d and i_windgust != 1141) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	row=mysql_fetch_row(result);
+	extremes.wgust_max=atof(row[0])/10.;
+	strcpy(extremes.wgust_max_time,&row[1][11]);
+	mysql_free_result(result);
+    }
+// fill maximum barometer for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select i_press as val,timestamp as time from wx.history where timestamp > %d) as a left join (select max(i_press) as val from wx.history where timestamp > %d) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	row=mysql_fetch_row(result);
+	extremes.barom_max=atof(row[0])/10.;
+	strcpy(extremes.barom_max_time,&row[1][11]);
+	mysql_free_result(result);
+    }
+// fill minimum barometer for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select i_press as val,timestamp as time from wx.history where timestamp > %d) as a left join (select min(i_press) as val from wx.history where timestamp > %d) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	row=mysql_fetch_row(result);
+	extremes.barom_min=atof(row[0])/10.;
+	strcpy(extremes.barom_min_time,&row[1][11]);
+	mysql_free_result(result);
+    }
     size_t num_recs=0;
     history->this_addr=latest_haddr-18;
     history->latest_addr=latest_haddr;
@@ -1145,9 +1196,7 @@ printf("%s\n",ibuf);
 	}
     }
     latest_haddr=history->latest_addr-18;
-    for (size_t n=0; n < 256; ++n) {
-	ibuf[n]=0;
-    }
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
     char midnight[20];
     sprintf(midnight,"20%02d-%02d-%02d 00:00:00",now->tm_year-100,now->tm_mon+1,now->tm_mday);
     midnight[19]='\0';
@@ -1160,9 +1209,9 @@ printf("query: %s\n",ibuf);
 	while (row=mysql_fetch_row(result)) {
 	  rain_day=atof(row[0]);
 	}
+	mysql_free_result(result);
     }
     printf("daily rain set to: %.2f\n",rain_day);
-    mysql_free_result(result);
     time_t t2=time(NULL);
     printf("%d records processed in %d seconds\n",num_recs,(t2-t1));
     close_mysql();
