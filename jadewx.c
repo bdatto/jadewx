@@ -898,7 +898,13 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 		    color_indexes.temp_out= (wx[cwx_idx].temp_out > wx[1-cwx_idx].temp_out) ? 2 : (wx[cwx_idx].temp_out < wx[1-cwx_idx].temp_out) ? 1 : 0;
 		    color_indexes.dewp_out= (wx[cwx_idx].dewp_out > wx[1-cwx_idx].dewp_out) ? 2 : (wx[cwx_idx].dewp_out < wx[1-cwx_idx].dewp_out) ? 1 : 0;
 		    color_indexes.rh_out= (wx[cwx_idx].rh_out > wx[1-cwx_idx].rh_out) ? 2 : (wx[cwx_idx].rh_out < wx[1-cwx_idx].rh_out) ? 1 : 0;
-		    color_indexes.wdir= (wx[cwx_idx].wdir > wx[1-cwx_idx].wdir) ? 2 : (wx[cwx_idx].wdir < wx[1-cwx_idx].wdir) ? 1 : 0;
+		    int wdiff=wx[cwx_idx].wdir-wx[1-cwx_idx].wdir;
+		    if (abs(wdiff) < 180) {
+			color_indexes.wdir= (wdiff > 0) ? 2 : (wdiff < 0) ? 1 : 0;
+		    }
+		    else {
+			color_indexes.wdir= (wdiff < 0) ? 2 : 1;
+		    }
 		    color_indexes.wspd= (wx[cwx_idx].wspd > wx[1-cwx_idx].wspd) ? 2 : (wx[cwx_idx].wspd < wx[1-cwx_idx].wspd) ? 1 : 0;
 		    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
 		    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
