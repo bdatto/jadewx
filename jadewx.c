@@ -646,14 +646,21 @@ int decode_history(unsigned char *buffer,History *history)
   history->wspd=idum/10.*2.237;
   idum=(buffer[12] & 0xf) << 8 | buffer[13];
   history->wgust=idum/10.*2.237;
-  if (history->wgust < 114. && history->wgust > extremes.wgust_max) {
-    extremes.wgust_max=history->wgust;
-  }
   history->rain_raw=((buffer[16] >> 4)*100.+(buffer[16] & 0xf)*10.+(buffer[17] >> 4))/100.;
   history->barom=((buffer[19] & 0xf)*10000.+(buffer[20] >> 4)*1000.+(buffer[20] & 0xf)*100.+(buffer[21] >> 4)*10.+(buffer[21] & 0xf))/10.;
   history->day_num=(buffer[27] >> 4)*10+(buffer[27] & 0xf);
-  sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),history->day_num,(buffer[28] >> 4)*10+(buffer[28] & 0xf),(buffer[29] >> 4)*10+(buffer[29] & 0xf));
+  int hour=(buffer[28] >> 4)*10+(buffer[28] & 0xf);
+  int minute=(buffer[29] >> 4)*10+(buffer[29] & 0xf);
+  sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),history->day_num,hour,minute);
   history->datetime[19]='\0';
+  if (hour == 18 && minute == 1) {
+    extremes.temp_out_max=-999.9;
+    extremes.temp_out_min=999.9;
+    extremes.wspd_max=-999.9;
+    extremes.wgust_max=-999.9;
+    extremes.barom_max=-9999.9;
+    extremes.barom_min=9999.9;
+  }
   if (history->this_addr <= history->latest_addr) {
     if (history->temp_out > extremes.temp_out_max) {
 	extremes.temp_out_max=history->temp_out;
@@ -663,6 +670,9 @@ int decode_history(unsigned char *buffer,History *history)
     }
     if (history->wspd < 114. && history->wspd > extremes.wspd_max) {
 	extremes.wspd_max=history->wspd;
+    }
+    if (history->wgust < 114. && history->wgust > extremes.wgust_max) {
+	extremes.wgust_max=history->wgust;
     }
     if (history->barom > extremes.barom_max) {
 	extremes.barom_max=history->barom;
