@@ -43,8 +43,10 @@ char *compass[361]={
 };
 struct {
   float temp_out_max,temp_out_min,wspd_max,wgust_max,barom_max,barom_min;
-  char temp_out_max_time[9],temp_out_min_time[9],wspd_max_time[9],wgust_max_time[9],barom_max_time[9],barom_min_time[9];
-} extremes;
+  char temp_out_max_time[6],temp_out_min_time[6],wspd_max_time[6],wgust_max_time[6],barom_max_time[6],barom_min_time[6];
+} extremes={-999.9,999.9,-999.9,-999.9,-9999.9,9999.9,
+            {0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0}
+           };
 pthread_t tid=0xffffffff;
 
 int timestamp(char *datetime)
@@ -665,27 +667,27 @@ int decode_history(unsigned char *buffer,History *history)
   if (history->this_addr <= history->latest_addr) {
     if (history->temp_out > extremes.temp_out_max) {
 	extremes.temp_out_max=history->temp_out;
-	strcpy(extremes.temp_out_max_time,&history->datetime[11]);
+	strncpy(extremes.temp_out_max_time,&history->datetime[11],5);
     }
     if (history->temp_out < extremes.temp_out_min) {
 	extremes.temp_out_min=history->temp_out;
-	strcpy(extremes.temp_out_min_time,&history->datetime[11]);
+	strncpy(extremes.temp_out_min_time,&history->datetime[11],5);
     }
     if (history->wspd < 114. && history->wspd > extremes.wspd_max) {
 	extremes.wspd_max=history->wspd;
-	strcpy(extremes.wspd_max_time,&history->datetime[11]);
+	strncpy(extremes.wspd_max_time,&history->datetime[11],5);
     }
     if (history->wgust < 114. && history->wgust > extremes.wgust_max) {
 	extremes.wgust_max=history->wgust;
-	strcpy(extremes.wgust_max_time,&history->datetime[11]);
+	strncpy(extremes.wgust_max_time,&history->datetime[11],5);
     }
     if (history->barom > extremes.barom_max) {
 	extremes.barom_max=history->barom;
-	strcpy(extremes.barom_max_time,&history->datetime[11]);
+	strncpy(extremes.barom_max_time,&history->datetime[11],5);
     }
     if (history->barom < extremes.barom_min) {
 	extremes.barom_min=history->barom;
-	strcpy(extremes.barom_min_time,&history->datetime[11]);
+	strncpy(extremes.barom_min_time,&history->datetime[11],5);
     }
   }
   return 1;
@@ -926,10 +928,11 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 		    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
 		    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
 		    color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
-		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"8\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
+		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"5\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
 		    fclose(fp);
 		    if (tid != 0xffffffff) {
 			pthread_join(tid,NULL);
+			tid=0xffffffff;
 		    }
 		    int status;
 		    if ( (status=pthread_create(&tid,NULL,thread_scp,NULL)) != 0) {
@@ -1112,9 +1115,10 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
-	row=mysql_fetch_row(result);
-	extremes.temp_out_max=atof(row[0])/10.;
-	strcpy(extremes.temp_out_max_time,&row[1][11]);
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.temp_out_max=atof(row[0])/10.;
+	  strncpy(extremes.temp_out_max_time,&row[1][11],5);
+	}
 	mysql_free_result(result);
     }
 // fill minimum temperature for current 24-hour period
@@ -1124,9 +1128,10 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
-	row=mysql_fetch_row(result);
-	extremes.temp_out_min=atof(row[0])/10.;
-	strcpy(extremes.temp_out_min_time,&row[1][11]);
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.temp_out_min=atof(row[0])/10.;
+	  strncpy(extremes.temp_out_min_time,&row[1][11],5);
+	}
 	mysql_free_result(result);
     }
 // fill maximum wind speed for current 24-hour period
@@ -1136,9 +1141,10 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
-	row=mysql_fetch_row(result);
-	extremes.wspd_max=atof(row[0])/10.;
-	strcpy(extremes.wspd_max_time,&row[1][11]);
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.wspd_max=atof(row[0])/10.;
+	  strncpy(extremes.wspd_max_time,&row[1][11],5);
+	}
 	mysql_free_result(result);
     }
 // fill maximum wind gust for current 24-hour period
@@ -1148,9 +1154,10 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
-	row=mysql_fetch_row(result);
-	extremes.wgust_max=atof(row[0])/10.;
-	strcpy(extremes.wgust_max_time,&row[1][11]);
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.wgust_max=atof(row[0])/10.;
+	  strncpy(extremes.wgust_max_time,&row[1][11],5);
+	}
 	mysql_free_result(result);
     }
 // fill maximum barometer for current 24-hour period
@@ -1160,9 +1167,10 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
-	row=mysql_fetch_row(result);
-	extremes.barom_max=atof(row[0])/10.;
-	strcpy(extremes.barom_max_time,&row[1][11]);
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.barom_max=atof(row[0])/10.;
+	  strncpy(extremes.barom_max_time,&row[1][11],5);
+	}
 	mysql_free_result(result);
     }
 // fill minimum barometer for current 24-hour period
@@ -1172,9 +1180,10 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     result=mysql_use_result(&mysql);
     if (result != NULL) {
 	MYSQL_ROW row;
-	row=mysql_fetch_row(result);
-	extremes.barom_min=atof(row[0])/10.;
-	strcpy(extremes.barom_min_time,&row[1][11]);
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.barom_min=atof(row[0])/10.;
+	  strncpy(extremes.barom_min_time,&row[1][11],5);
+	}
 	mysql_free_result(result);
     }
     size_t num_recs=0;
