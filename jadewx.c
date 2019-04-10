@@ -816,12 +816,13 @@ void wait_for_message(libusb_device_handle *handle)
 void *thread_scp(void *ts)
 {
   system("scp -q /home/wx/current_wx.html pi@10.0.0.15:/home/pi/current_wx/");
+  system("scp -q /home/wx/current_wx.json pi@10.0.0.15:/home/pi/current_wx/");
   return NULL;
 }
 
 char *colors[3]={"black","dodgerblue","crimson"};
 struct {
-  short temp_out,dewp_out,rh_out,wdir,wspd,wgust,barom,rain_1hr;
+  short temp_out,dewp_out,rh_out,wdir,wspd,wgust,barom,rain_1hr,rain_day;
 } color_indexes;
 char *insert_buffer=NULL,*url_buffer=NULL;
 const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
@@ -928,8 +929,13 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 		    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
 		    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
 		    color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
+		    color_indexes.rain_day= (wx[cwx_idx].rain_total > wx[1-cwx_idx].rain_total) ? 2 : (wx[cwx_idx].rain_total < wx[1-cwx_idx].rain_total) ? 1 : 0;
 		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"5\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
 		    fclose(fp);
+		    if ( (fp=fopen("/home/wx/current_wx.json","w")) != NULL) {
+			fprintf(fp,"{ \"curr_data\": { \"timestamp\": %d, \"date_time\": \"%04d-%02d-%02d %02d:%02d:%02d UTC\", \"curr_wdir\": [\"%s\", %d], \"curr_wspd\": [\"%.1f\", %d], \"curr_wgust\": [\"%.1f\", %d], \"curr_temp\": [\"%.1f\", %d], \"curr_dewp\": [\"%.1f\", %d], \"curr_rh\": [\"%d\", %d], \"curr_press\": [\"%.2f\", %d], \"rain_1hr\": [\"%.2f\", %d], \"rain_day\": [\"%.2f\", %d] },\n\"extremes\": { \"hi_temp\": [\"%.1f\", \"%s\"], \"lo_temp\": [\"%.1f\", \"%s\"], \"max_wspd\": [\"%.1f\", \"%s\"], \"max_gust\": [\"%.1f\", \"%s\"], \"max_press\": [\"%.2f\", \"%s\"], \"min_press\": [\"%.2f\", \"%s\"] } }\n",upload_time,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],color_indexes.wdir,wx[cwx_idx].wspd,color_indexes.wspd,wx[cwx_idx].wgust,color_indexes.wgust,wx[cwx_idx].temp_out,color_indexes.temp_out,wx[cwx_idx].dewp_out,color_indexes.dewp_out,wx[cwx_idx].rh_out,color_indexes.rh_out,wx[cwx_idx].barom,color_indexes.barom,wx[cwx_idx].rain_1hr,color_indexes.rain_1hr,computed_rain_day,color_indexes.rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
+			fclose(fp);
+		    }
 		    if (tid != 0xffffffff) {
 			pthread_join(tid,NULL);
 			tid=0xffffffff;
@@ -1102,8 +1108,8 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",now->tm_year-100,now->tm_mon+1,now->tm_mday);
     }
     else {
-	t-=86400;
-	struct tm *yesterday=localtime(&t);
+	time_t ty=t-86400;
+	struct tm *yesterday=localtime(&ty);
 	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",yesterday->tm_year-100,yesterday->tm_mon+1,yesterday->tm_mday);
     }
     datetime[19]='\0';
