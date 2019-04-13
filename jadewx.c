@@ -43,11 +43,11 @@ char *compass[361]={
 };
 struct {
   float temp_out_max,temp_out_min,wspd_max,wgust_max,barom_max,barom_min;
-  int wspd_max_wdir;
-  char temp_out_max_time[6],temp_out_min_time[6],wspd_max_time[6],wgust_max_time[6],barom_max_time[6],barom_min_time[6];
+  int rh_max,rh_min,wspd_max_wdir;
+  char temp_out_max_time[6],temp_out_min_time[6],wspd_max_time[6],wgust_max_time[6],barom_max_time[6],barom_min_time[6],rh_max_time[6],rh_min_time[6];
 } extremes={-999.9,999.9,-999.9,-999.9,-9999.9,9999.9,
-            -999,
-            {0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0}
+            -999,999,-999,
+            {0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0},{0,0,0,0,0,0}
            };
 pthread_t tid=0xffffffff;
 
@@ -666,6 +666,8 @@ int decode_history(unsigned char *buffer,History *history)
     extremes.wgust_max=-999.9;
     extremes.barom_max=-9999.9;
     extremes.barom_min=9999.9;
+    extremes.rh_max=-999;
+    extremes.rh_min=-999;
   }
   if (history->this_addr <= history->latest_addr) {
     if (history->temp_out > extremes.temp_out_max) {
@@ -692,6 +694,14 @@ int decode_history(unsigned char *buffer,History *history)
     if (history->barom < extremes.barom_min) {
 	extremes.barom_min=history->barom;
 	strncpy(extremes.barom_min_time,&history->datetime[11],5);
+    }
+    if (history->rh_out > extremes.rh_max) {
+	extremes.rh_max=history->rh_out;
+	strncpy(extremes.rh_max_time,&history->datetime[11],5);
+    }
+    if (history->rh_out < extremes.rh_min) {
+	extremes.rh_min=history->rh_out;
+	strncpy(extremes.rh_min_time,&history->datetime[11],5);
     }
   }
   return 1;
@@ -937,7 +947,7 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"5\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
 		    fclose(fp);
 		    if ( (fp=fopen("/home/wx/current_wx.json","w")) != NULL) {
-			fprintf(fp,"{ \"curr_data\": { \"timestamp\": %d, \"date_time\": \"%04d-%02d-%02d %02d:%02d:%02d UTC\", \"curr_wdir\": [\"%s\", %d], \"curr_wspd\": [\"%.1f\", %d], \"curr_wgust\": [\"%.1f\", %d], \"curr_temp\": [\"%.1f\", %d], \"curr_dewp\": [\"%.1f\", %d], \"curr_rh\": [\"%d\", %d], \"curr_press\": [\"%.2f\", %d], \"rain_1hr\": [\"%.2f\", %d], \"rain_day\": [\"%.2f\", %d] },\n\"extremes\": { \"hi_temp\": [\"%.1f\", \"%s\"], \"lo_temp\": [\"%.1f\", \"%s\"], \"max_wspd\": [\"%.1f\", \"%s\", \"%s\"], \"max_gust\": [\"%.1f\", \"%s\"], \"max_press\": [\"%.2f\", \"%s\"], \"min_press\": [\"%.2f\", \"%s\"] } }\n",upload_time,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],color_indexes.wdir,wx[cwx_idx].wspd,color_indexes.wspd,wx[cwx_idx].wgust,color_indexes.wgust,wx[cwx_idx].temp_out,color_indexes.temp_out,wx[cwx_idx].dewp_out,color_indexes.dewp_out,wx[cwx_idx].rh_out,color_indexes.rh_out,wx[cwx_idx].barom,color_indexes.barom,wx[cwx_idx].rain_1hr,color_indexes.rain_1hr,computed_rain_day,color_indexes.rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,compass[extremes.wspd_max_wdir],extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
+			fprintf(fp,"{ \"curr_data\": { \"timestamp\": %d, \"date_time\": \"%04d-%02d-%02d %02d:%02d:%02d UTC\", \"curr_wdir\": [\"%s\", %d], \"curr_wspd\": [\"%.1f\", %d], \"curr_wgust\": [\"%.1f\", %d], \"curr_temp\": [\"%.1f\", %d], \"curr_dewp\": [\"%.1f\", %d], \"curr_rh\": [\"%d\", %d], \"curr_press\": [\"%.2f\", %d], \"rain_1hr\": [\"%.2f\", %d], \"rain_day\": [\"%.2f\", %d] },\n\"extremes\": { \"hi_temp\": [\"%.1f\", \"%s\"], \"lo_temp\": [\"%.1f\", \"%s\"], \"max_wspd\": [\"%.1f\", \"%s\", \"%s\"], \"max_gust\": [\"%.1f\", \"%s\"], \"max_press\": [\"%.2f\", \"%s\"], \"min_press\": [\"%.2f\", \"%s\"], \"max_rh\": [\"%d\", \"%s\"], \"min_rh\": [\"%d\", \"%s\"] } }\n",upload_time,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],color_indexes.wdir,wx[cwx_idx].wspd,color_indexes.wspd,wx[cwx_idx].wgust,color_indexes.wgust,wx[cwx_idx].temp_out,color_indexes.temp_out,wx[cwx_idx].dewp_out,color_indexes.dewp_out,wx[cwx_idx].rh_out,color_indexes.rh_out,wx[cwx_idx].barom,color_indexes.barom,wx[cwx_idx].rain_1hr,color_indexes.rain_1hr,computed_rain_day,color_indexes.rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,compass[extremes.wspd_max_wdir],extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time,extremes.rh_max,extremes.rh_max_time,extremes.rh_min,extremes.rh_min_time);
 			fclose(fp);
 		    }
 		    if (tid != 0xffffffff) {
@@ -1194,6 +1204,32 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	if ( (row=mysql_fetch_row(result)) != NULL) {
 	  extremes.barom_min=atof(row[0])/10.;
 	  strncpy(extremes.barom_min_time,&row[1][11],5);
+	}
+	mysql_free_result(result);
+    }
+// fill maximum rh for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select rh as val,timestamp as time from wx.history where timestamp > %d) as a left join (select max(rh) as val from wx.history where timestamp > %d) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.rh_max=atoi(row[0]);
+	  strncpy(extremes.rh_max_time,&row[1][11],5);
+	}
+	mysql_free_result(result);
+    }
+// fill minimum rh for current 24-hour period
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.val,from_unixtime(a.time),b.val from (select rh as val,timestamp as time from wx.history where timestamp > %d) as a left join (select min(rh) as val from wx.history where timestamp > %d) as b on b.val = a.val having a.val = b.val",tstamp,tstamp);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	if ( (row=mysql_fetch_row(result)) != NULL) {
+	  extremes.rh_min=atoi(row[0]);
+	  strncpy(extremes.rh_min_time,&row[1][11],5);
 	}
 	mysql_free_result(result);
     }
