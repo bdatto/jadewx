@@ -939,6 +939,7 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 		    else {
 			color_indexes.wdir= (wdiff < 0) ? 2 : 1;
 		    }
+printf("old: %d new: %d diff: %d index: %d\n",wx[1-cwx_idx].wdir,wx[cwx_idx].wdir,wdiff,color_indexes.wdir);
 		    color_indexes.wspd= (wx[cwx_idx].wspd > wx[1-cwx_idx].wspd) ? 2 : (wx[cwx_idx].wspd < wx[1-cwx_idx].wspd) ? 1 : 0;
 		    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
 		    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
@@ -1116,15 +1117,17 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     }
     printf("last history address in the database: %d\n",latest_haddr);
     time_t t=time(NULL);
-    struct tm *now=localtime(&t);
+    struct tm time_now;
+    localtime_r(&t,&time_now);
     char datetime[20];
-    if (now->tm_hour >= 18) {
-	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",now->tm_year-100,now->tm_mon+1,now->tm_mday);
+    if (time_now.tm_hour >= 18) {
+	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",time_now.tm_year-100,time_now.tm_mon+1,time_now.tm_mday);
     }
     else {
 	time_t ty=t-86400;
-	struct tm *yesterday=localtime(&ty);
-	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",yesterday->tm_year-100,yesterday->tm_mon+1,yesterday->tm_mday);
+	struct tm yesterday;
+	localtime_r(&ty,&yesterday);
+	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",yesterday.tm_year-100,yesterday.tm_mon+1,yesterday.tm_mday);
     }
     datetime[19]='\0';
     int tstamp=timestamp(datetime);
@@ -1254,7 +1257,7 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     latest_haddr=history->latest_addr-18;
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
     char midnight[20];
-    sprintf(midnight,"20%02d-%02d-%02d 00:00:00",now->tm_year-100,now->tm_mon+1,now->tm_mday);
+    sprintf(midnight,"20%02d-%02d-%02d 00:00:00",time_now.tm_year-100,time_now.tm_mon+1,time_now.tm_mday);
     midnight[19]='\0';
     sprintf(ibuf,"select sum(i_rain)/100. from wx.history where timestamp > %d and timestamp <= %d",timestamp(midnight),t);
 printf("query: %s\n",ibuf);
