@@ -667,7 +667,7 @@ int decode_history(unsigned char *buffer,History *history)
     extremes.barom_max=-9999.9;
     extremes.barom_min=9999.9;
     extremes.rh_max=-999;
-    extremes.rh_min=-999;
+    extremes.rh_min=999;
   }
   if (history->this_addr <= history->latest_addr) {
     if (history->temp_out > extremes.temp_out_max) {
