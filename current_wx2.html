@@ -115,6 +115,16 @@ smallest {
   left: 50%;
   margin-left: -1px;
 }
+.compass .tick.shortest:after {
+  content: "";
+  width: 0;
+  height: 2px;
+  position: absolute;
+  border-left: 1px solid black;
+  top: 5px;
+  left: 50%;
+  margin-left: -1px;
+}
 .NNE { transform: rotate(23deg); }
 .NE { transform: rotate(45deg); }
 .ENE { transform: rotate(68deg); }
@@ -328,10 +338,10 @@ function rotate(id,from,to,rot)
 </head>
 <body style="font-family: arial,sans-serif; font-size: 16px" onload="setInterval('get_data()',5000); setInterval('refresh_webcam()',600000)">
 <div>
-<div class="panel" style="height: 500px">
+<div class="panel" style="width: 485px; height: 500px">
 <h2 style="margin-top: 5px">Current Weather:</h2>
-<div style="margin-left: 15px; margin-right: 15px">
-<table style="margin-top: 10px; margin-bottom: 10px" cellspacing="0" cellpadding="0" border="0">
+<div>
+<table align="center" cellspacing="0" cellpadding="0" border="0">
 <tr>
 <td colspan="4" align="center"><span style="font-size: 22px"><span id="date_time"></span></span><br /><small>(reported <span id="reported"></span> seconds ago)</small></td>
 </tr>
@@ -347,22 +357,70 @@ function rotate(id,from,to,rot)
 <content><span id="curr_wdir"></span><speed><span id="curr_wspd"></span><br /><smallest>mph</smallest></speed></content>
 </div>
 <div id="arrow" class="arrow N"></div>
-<div id="tickN" class="tick"></div>
-<div id="tickNNE" class="tick short NNE"></div>
-<div id="tickNE" class="tick NE"></div>
-<div id="tickENE" class="tick short ENE"></div>
-<div id="tickE" class="tick E"></div>
-<div id="tickESE" class="tick short ESE"></div>
-<div id="tickSE" class="tick SE"></div>
-<div id="tickSSE" class="tick short SSE"></div>
-<div id="tickS" class="tick S"></div>
-<div id="tickSSW" class="tick short SSW"></div>
-<div id="tickSW" class="tick SW"></div>
-<div id="tickWSW" class="tick short WSW"></div>
-<div id="tickW" class="tick W"></div>
-<div id="tickWNW" class="tick short WNW"></div>
-<div id="tickNW" class="tick NW"></div>
-<div id="tickNNW" class="tick short NNW"></div>
+<div class="tick"></div>
+<div class="tick shortest" style="transform: rotate(5.75deg)"></div>
+<div class="tick shortest" style="transform: rotate(11.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(17.25deg)"></div>
+<div class="tick short NNE"></div>
+<div class="tick shortest" style="transform: rotate(28.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(34deg)"></div>
+<div class="tick shortest" style="transform: rotate(39.5deg)"></div>
+<div class="tick NE"></div>
+<div class="tick shortest" style="transform: rotate(50.75deg)"></div>
+<div class="tick shortest" style="transform: rotate(56.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(62.25deg)"></div>
+<div class="tick short ENE"></div>
+<div class="tick shortest" style="transform: rotate(73.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(79deg)"></div>
+<div class="tick shortest" style="transform: rotate(84.5deg)"></div>
+<div class="tick E"></div>
+<div class="tick shortest" style="transform: rotate(95.75deg)"></div>
+<div class="tick shortest" style="transform: rotate(101.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(107.25deg)"></div>
+<div class="tick short ESE"></div>
+<div class="tick shortest" style="transform: rotate(118.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(124deg)"></div>
+<div class="tick shortest" style="transform: rotate(129.5deg)"></div>
+<div class="tick SE"></div>
+<div class="tick shortest" style="transform: rotate(140.75deg)"></div>
+<div class="tick shortest" style="transform: rotate(146.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(152.25deg)"></div>
+<div class="tick short SSE"></div>
+<div class="tick shortest" style="transform: rotate(163.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(169deg)"></div>
+<div class="tick shortest" style="transform: rotate(174.5deg)"></div>
+<div class="tick S"></div>
+<div class="tick shortest" style="transform: rotate(-174.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-169deg)"></div>
+<div class="tick shortest" style="transform: rotate(-163.5deg)"></div>
+<div class="tick short SSW"></div>
+<div class="tick shortest" style="transform: rotate(-152.25deg)"></div>
+<div class="tick shortest" style="transform: rotate(-146.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-140.75deg)"></div>
+<div class="tick SW"></div>
+<div class="tick shortest" style="transform: rotate(-129.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-124deg)"></div>
+<div class="tick shortest" style="transform: rotate(-118.5deg)"></div>
+<div class="tick short WSW"></div>
+<div class="tick shortest" style="transform: rotate(-107.25deg)"></div>
+<div class="tick shortest" style="transform: rotate(-101.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-95.75deg)"></div>
+<div class="tick W"></div>
+<div class="tick shortest" style="transform: rotate(-84.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-79deg)"></div>
+<div class="tick shortest" style="transform: rotate(-73.5deg)"></div>
+<div class="tick short WNW"></div>
+<div class="tick shortest" style="transform: rotate(-62.25deg)"></div>
+<div class="tick shortest" style="transform: rotate(-56.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-50.75deg)"></div>
+<div class="tick NW"></div>
+<div class="tick shortest" style="transform: rotate(-39.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-34deg)"></div>
+<div class="tick shortest" style="transform: rotate(-28.5deg)"></div>
+<div class="tick short NNW"></div>
+<div class="tick shortest" style="transform: rotate(-17.25deg)"></div>
+<div class="tick shortest" style="transform: rotate(-11.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-5.75deg)"></div>
 </div>
 </td>
 <td width="25%" align="center"><span id="curr_press" style="font-size: 28px"></span><br /><small>in Hg</small></td>
@@ -372,10 +430,10 @@ function rotate(id,from,to,rot)
 </table>
 </div>
 </div>
-<div class="panel" style="height: 500px">
+<div class="panel" style="width: 485px; height: 500px">
 <h2 style="margin-top: 5px; margin-bottom: 0px">Daily Summary:</h2>
 <small>(18:00 to 18:00 LST)</small>
-<table style="margin-top: 15px" cellspacing="0" cellpadding="15">
+<table align="center" cellspacing="0" cellpadding="15">
 <tr>
 <th></th><th class="cb-top cb-left">Maximum</th><th class="cb-top cb-right cb-left">Minimum</th>
 </tr>
