@@ -1,0 +1,407 @@
+<html>
+<head>
+<title>JadeWx</title>
+<style>
+small {
+  font-size: 14px;
+}
+smallest {
+  font-size: 13px;
+}
+.compass {
+  display: block;
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: 100%;
+  border: 6px solid #5a5a5a;
+  margin-bottom: 5px;
+}
+.compass:before {
+  font-weight: bold;
+  position: absolute;
+  text-align: center;
+  width: 100%;
+  content: "";
+  font-size: 14px;
+  top: -2px;
+}
+.compass .direction {
+  height: 100%;
+  width: 100%;
+  display: block;
+  border-radius: 100%;
+}
+.compass .direction content {
+  text-align: center;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  line-height: 150px;
+  display: block;
+  margin-top: -94px;
+  font-size: 36px;
+}
+.compass .direction content speed {
+  display: block;
+  line-height: 24px;
+  margin-top: -52px;
+  font-size: 32px;
+}
+.compass .arrow {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: absolute;
+  top: 0;
+}
+/*
+.compass .arrow:before {
+  content: "";
+  width: 0;
+  height: 0;
+  position: absolute;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 6px solid black;
+  top: -18px;
+  left: 50%;
+  margin-left: -8px;
+  z-index: 99;
+}
+*/
+.compass .arrow:after {
+  content: "";
+  width: 0;
+  height: 0;
+  position: absolute;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 26px solid black;
+  border-radius: 30px;
+  top: -14px;
+  left: 50%;
+  margin-left: -8px;
+  z-index: 99;
+}
+.compass .tick {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: absolute;
+  top: 0;
+}
+.compass .tick:after {
+  content: "";
+  width: 0;
+  height: 10px;
+  position: absolute;
+  border: thin solid black;
+  top: 5px;
+  left: 50%;
+  margin-left: -1px;
+}
+.compass .tick.short:after {
+  content: "";
+  width: 0;
+  height: 6px;
+  position: absolute;
+  border: thin solid black;
+  top: 5px;
+  left: 50%;
+  margin-left: -1px;
+}
+.NNE { transform: rotate(23deg); }
+.NE { transform: rotate(45deg); }
+.ENE { transform: rotate(68deg); }
+.E { transform: rotate(90deg); }
+.ESE { transform: rotate(113deg); }
+.SE { transform: rotate(135deg); }
+.SSE { transform: rotate(158deg); }
+.S { transform: rotate(180deg); }
+.SSW { transform: rotate(-158deg); }
+.SW { transform: rotate(-135deg); }
+.WSW { transform: rotate(-113deg); }
+.W { transform: rotate(-90deg); }
+.WNW { transform: rotate(-68deg); }
+.NW { transform: rotate(-45deg); }
+.NNW { transform: rotate(-23deg);}
+.cb-top {
+  border-top: thin solid #d0d0d0;
+}
+.cb-right {
+  border-right: thin solid #d0d0d0;
+}
+.cb-bottom {
+  border-bottom: thin solid #d0d0d0;
+}
+.cb-left {
+  border-left: thin solid #d0d0d0;
+}
+.panel {
+  display: inline;
+  float: left;
+  padding: 10px;
+  border: 5px solid #d0d0d0;
+  border-radius: 15px;
+  margin: 2px
+}
+</style>
+<script language="javascript" type="text/javascript">
+var warm_cold_colors=["black","dodgerblue","crimson"];
+var wet_dry_colors=["black","brown","green"];
+var font_weights=["normal","bold","bold"];
+var xhr;
+var current_interval=0;
+var current_dir_end;
+function get_data()
+{
+  xhr=new XMLHttpRequest();
+  xhr.onreadystatechange=update_data;
+  xhr.open("GET","/current_wx/current_wx.json");
+  xhr.send("");
+}
+
+var last_timestamp=0;
+function update_data()
+{
+  if (xhr.readyState == 4) {
+    var json=xhr.responseText;
+    var o=JSON.parse(json);
+    var now=parseInt(new Date().getTime()/1000);
+    document.getElementById("reported").innerHTML=(now-o.curr_data.timestamp);
+    if (o.curr_data.timestamp != last_timestamp) {
+	if (current_interval != 0) {
+console.log("***NOT DONE ROTATING - jumping to "+current_dir_end);
+	  clearInterval(current_interval);
+	  document.getElementById('arrow').style.transform="rotate("+current_dir_end+"deg)";
+	}
+	document.getElementById("date_time").innerHTML=o.curr_data.date_time.substring(0,10)+"<br />"+o.curr_data.date_time.substring(11);
+	if (o.curr_data.curr_wdir[0].length == 0) {
+	  document.getElementById("curr_wdir").innerHTML="X";
+	  document.getElementById("arrow").className="arrow N";
+	}
+	else {
+	  if (o.curr_data.old_wdir == "??" || document.getElementById("curr_wdir").innerHTML.length == 0) {
+	    o.curr_data.old_wdir="N";
+	  }
+//console.log("old: "+o.curr_data.old_wdir+" new: "+o.curr_data.curr_wdir[0]);
+	  rotate('arrow',o.curr_data.old_wdir,o.curr_data.curr_wdir[0],o.curr_data.curr_wdir[1]);
+	}
+	document.getElementById("curr_wdir").innerHTML= (o.curr_data.curr_wdir[0].length == 0) ? "X" : o.curr_data.curr_wdir[0];
+	document.getElementById("curr_wdir").style.color=warm_cold_colors[o.curr_data.curr_wdir[1]];
+	document.getElementById("curr_wdir").style.fontWeight=font_weights[o.curr_data.curr_wdir[1]];
+	document.getElementById("curr_wspd").innerHTML=o.curr_data.curr_wspd[0];
+	document.getElementById("curr_wspd").style.color=warm_cold_colors[o.curr_data.curr_wspd[1]];
+	document.getElementById("curr_wspd").style.fontWeight=font_weights[o.curr_data.curr_wspd[1]];
+	document.getElementById("curr_wgust").innerHTML=o.curr_data.curr_wgust[0];
+	document.getElementById("curr_wgust").style.color=warm_cold_colors[o.curr_data.curr_wgust[1]];
+	document.getElementById("curr_wgust").style.fontWeight=font_weights[o.curr_data.curr_wgust[1]];
+	document.getElementById("curr_temp").innerHTML=o.curr_data.curr_temp[0];
+	document.getElementById("curr_temp").style.color=warm_cold_colors[o.curr_data.curr_temp[1]];
+	document.getElementById("curr_temp").style.fontWeight=font_weights[o.curr_data.curr_temp[1]];
+	document.getElementById("curr_dewp").innerHTML=o.curr_data.curr_dewp[0];
+	document.getElementById("curr_dewp").style.color=wet_dry_colors[o.curr_data.curr_dewp[1]];
+	document.getElementById("curr_dewp").style.fontWeight=font_weights[o.curr_data.curr_dewp[1]];
+	document.getElementById("curr_rh").innerHTML=o.curr_data.curr_rh[0];
+	document.getElementById("curr_rh").style.color=wet_dry_colors[o.curr_data.curr_rh[1]];
+	document.getElementById("curr_rh").style.fontWeight=font_weights[o.curr_data.curr_rh[1]];
+	document.getElementById("curr_press").innerHTML=o.curr_data.curr_press[0];
+	document.getElementById("curr_press").style.color=warm_cold_colors[o.curr_data.curr_press[1]];
+	document.getElementById("curr_press").style.fontWeight=font_weights[o.curr_data.curr_press[1]];
+	document.getElementById("rain_1hr").innerHTML=o.curr_data.rain_1hr[0];
+	document.getElementById("rain_1hr").style.color=wet_dry_colors[o.curr_data.rain_1hr[1]];
+	document.getElementById("rain_1hr").style.fontWeight=font_weights[o.curr_data.rain_1hr[1]];
+	document.getElementById("rain_day").innerHTML=o.curr_data.rain_day[0];
+	document.getElementById("rain_day").style.color=wet_dry_colors[o.curr_data.rain_day[1]];
+	document.getElementById("rain_day").style.fontWeight=font_weights[o.curr_data.rain_day[1]];
+	document.getElementById("hi_temp").innerHTML=o.extremes.hi_temp[0];
+	document.getElementById("hi_temp_time").innerHTML=o.extremes.hi_temp[1];
+	document.getElementById("lo_temp").innerHTML=o.extremes.lo_temp[0];
+	document.getElementById("lo_temp_time").innerHTML=o.extremes.lo_temp[1];
+	document.getElementById("max_rh").innerHTML=o.extremes.max_rh[0];
+	document.getElementById("max_rh_time").innerHTML=o.extremes.max_rh[1];
+	document.getElementById("min_rh").innerHTML=o.extremes.min_rh[0];
+	document.getElementById("min_rh_time").innerHTML=o.extremes.min_rh[1];
+	document.getElementById("max_wspd").innerHTML=o.extremes.max_wspd[0];
+	document.getElementById("max_wspd_dir").innerHTML=o.extremes.max_wspd[1];
+	document.getElementById("max_wspd_time").innerHTML=o.extremes.max_wspd[2];
+	document.getElementById("max_gust").innerHTML=o.extremes.max_gust[0];
+	document.getElementById("max_gust_time").innerHTML=o.extremes.max_gust[1];
+	document.getElementById("max_press").innerHTML=o.extremes.max_press[0];
+	document.getElementById("max_press_time").innerHTML=o.extremes.max_press[1];
+	document.getElementById("min_press").innerHTML=o.extremes.min_press[0];
+	document.getElementById("min_press_time").innerHTML=o.extremes.min_press[1];
+    }
+    last_timestamp=o.curr_data.timestamp;
+  }
+}
+
+function refresh_webcam()
+{
+  document.getElementById("webcam").src='/images/latest-image.jpg?t='+new Date().getTime();
+}
+
+var dir_map=new Map([ ['N',0], ['NNE',23], ['NE',45], ['ENE',68], ['E',90], ['ESE',113], ['SE',135], ['SSE',158], ['S',180], ['SSW',203], ['SW',225], ['WSW',248], ['W',270], ['WNW',293], ['NW',315], ['NNW',338] ]);
+var rotators=new Array();
+function getRotatorIndex(i)
+{
+  var ridx=-1;
+  for (n=0; n < rotators.length; n++) {
+    if (rotators[n].id == i) {
+	ridx=n;
+	break;
+    }
+  }
+  if (ridx < 0) {
+    ridx=rotators.length;
+    rotators[ridx]=new Object({start: -1});
+  }
+  return ridx;
+}
+
+function rotateIt(ridx,end,div)
+{
+  var r=rotators[ridx];
+  eval("document.getElementById('"+r.id+"').style.transform='rotate("+r.start+"deg)'");
+//console.log('arrow set at '+r.start+' deg');
+  r.start+=div;
+//console.log('start: '+r.start+' end: '+end+' div: '+div+' diff: '+(r.start-end));
+  if (div > 0) {
+    if (r.start >= end && (r.start-end) < div) {
+	r.start=end;
+    }
+    clearInterval(r.i);
+    current_interval=0;
+    if (r.start <= end) {
+	r.i=setInterval("rotateIt("+ridx+","+end+","+div+")",10);
+	current_interval=r.i;
+	current_dir_end=end;
+    }
+  }
+  else {
+    if (r.start <= end && (r.start-end) > div) {
+	r.start=end;
+    }
+    clearInterval(r.i);
+    current_interval=0;
+    if (r.start >= end) {
+	r.i=setInterval("rotateIt("+ridx+","+end+","+div+")",10);
+	current_interval=r.i;
+	current_dir_end=end;
+    }
+  }
+}
+
+function rotate(id,from,to,rot)
+{
+  if (from == to) {
+    return;
+  }
+  var ridx=getRotatorIndex(id);
+  var r=rotators[ridx];
+  r.id=id;
+  r.start=dir_map.get(from);
+  to=dir_map.get(to);
+  if (rot == 1 && r.start < to) {
+    r.start+=360;
+  }
+  else if (rot == 2 && to < r.start) {
+    to+=360;
+  }
+  if (rot == 1) {
+    r.i=setInterval("rotateIt("+ridx+","+to+",-5)",10);
+    current_interval=r.i;
+    current_dir_end=to;
+  }
+  else {
+    r.i=setInterval("rotateIt("+ridx+","+to+",5)",10);
+    current_interval=r.i;
+    current_dir_end=to;
+  }
+}
+</script>
+</head>
+<body style="font-family: arial,sans-serif; font-size: 16px" onload="setInterval('get_data()',5000); setInterval('refresh_webcam()',600000)">
+<div>
+<div class="panel" style="height: 500px">
+<h2 style="margin-top: 5px">Current Weather:</h2>
+<div style="margin-left: 15px; margin-right: 15px">
+<table style="margin-top: 10px; margin-bottom: 10px" cellspacing="0" cellpadding="0" border="0">
+<tr>
+<td colspan="4" align="center"><span style="font-size: 22px"><span id="date_time"></span></span><br /><small>(reported <span id="reported"></span> seconds ago)</small></td>
+</tr>
+<tr><td colspan="4"><div style="height: 60px; width: 1px"></div></td></tr>
+<tr valign="top">
+<td colspan="2" align="center"><span style="font-size: 42px; padding-left: 10px"><span id="curr_temp"></span>&deg;</span> <small>F</small>&nbsp;</td><td colspan="2" align="center"><span style="font-size: 28px">G <span id="curr_wgust"></span></span> <small>mph</small></td>
+</tr>
+<tr valign="middle">
+<td width="25%" align="center"><span style="font-size: 28px">&nbsp;&nbsp;&nbsp;<span id="curr_rh"></span></span> <small>%</small></td>
+<td colspan="2" align="center">
+<div class="compass">
+<div class="direction">
+<content><span id="curr_wdir"></span><speed><span id="curr_wspd"></span><br /><smallest>mph</smallest></speed></content>
+</div>
+<div id="arrow" class="arrow N"></div>
+<div id="tickN" class="tick"></div>
+<div id="tickNNE" class="tick short NNE"></div>
+<div id="tickNE" class="tick NE"></div>
+<div id="tickENE" class="tick short ENE"></div>
+<div id="tickE" class="tick E"></div>
+<div id="tickESE" class="tick short ESE"></div>
+<div id="tickSE" class="tick SE"></div>
+<div id="tickSSE" class="tick short SSE"></div>
+<div id="tickS" class="tick S"></div>
+<div id="tickSSW" class="tick short SSW"></div>
+<div id="tickSW" class="tick SW"></div>
+<div id="tickWSW" class="tick short WSW"></div>
+<div id="tickW" class="tick W"></div>
+<div id="tickWNW" class="tick short WNW"></div>
+<div id="tickNW" class="tick NW"></div>
+<div id="tickNNW" class="tick short NNW"></div>
+</div>
+</td>
+<td width="25%" align="center"><span id="curr_press" style="font-size: 28px"></span><br /><small>in Hg</small></td>
+<tr valign="bottom">
+<td colspan="2" align="center"><span style="font-size: 32px; padding-left: 10px"><span id="curr_dewp"></span>&deg;</span> <small>F</small>&nbsp;</td><td colspan="2" align="center"><span style="font-size: 28px"><span id="rain_1hr"></span></span> <small>in</small></td>
+</tr>
+</table>
+</div>
+</div>
+<div class="panel" style="height: 500px">
+<h2 style="margin-top: 5px; margin-bottom: 0px">Daily Summary:</h2>
+<small>(18:00 to 18:00 LST)</small>
+<table style="margin-top: 15px" cellspacing="0" cellpadding="15">
+<tr>
+<th></th><th class="cb-top cb-left">Maximum</th><th class="cb-top cb-right cb-left">Minimum</th>
+</tr>
+<tr valign="top">
+<td class="cb-top cb-left"><strong>Temperature:</strong>&nbsp;</td><td class="cb-top cb-left" align="center"><span id="hi_temp"></span>&deg;&nbsp;<small>F<br />(<span id="hi_temp_time"></span> LST)</small></td><td class="cb-top cb-right cb-left" align="center"><span id="lo_temp"></span>&deg;&nbsp;<small>F<br />(<span id="lo_temp_time"></span> LST)</small></td>
+</tr>
+<tr valign="top">
+<td class="cb-top cb-left"><strong>Relative humidity:</strong>&nbsp;</td><td class="cb-top cb-left" align="center"><span id="max_rh"></span>&nbsp;<small>%<br />(<span id="max_rh_time"></span> LST)</small></td><td class="cb-top cb-right cb-left" align="center"><span id="min_rh"></span>&nbsp;<small>%<br />(<span id="min_rh_time"></span> LST)</small></td>
+</tr>
+<tr valign="top">
+<td class="cb-top cb-left"><strong>Wind speed:</strong>&nbsp;</td><td class="cb-top cb-left" align="center"><span id="max_wspd_dir"></span> <span id="max_wspd"></span>&nbsp;<small>mph</small><br /><small>(<span id="max_wspd_time"></span> LST)</small></td><td class="cb-top cb-left"></td>
+</tr>
+<tr valign="top">
+<td class="cb-top cb-left"><strong>Peak gust:</strong>&nbsp;</td><td class="cb-top cb-left" align="center"><span id="max_gust"></span>&nbsp;<small>mph<br />(<span id="max_gust_time"></span> LST)</small></td><td class="cb-left"></td>
+</tr>
+<tr valign="top">
+<td class="cb-top cb-left"><strong>Pressure:</strong>&nbsp;</td><td class="cb-top cb-left" align="center"><span id="max_press"></span>&nbsp;<small>in Hg<br />(<span id="max_press_time"></span> LST)</small></td><td class="cb-top cb-right cb-left" align="center"><span id="min_press"></span>&nbsp;<small>in Hg<br />(<span id="min_press_time"></span> LST)</small></td>
+</tr>
+<tr valign="top">
+<td class="cb-top cb-bottom cb-left"><strong>Rain:</strong>&nbsp;</td><td class="cb-top cb-bottom cb-left" align="center"><span id="rain_day"></span>&nbsp;<small>in</small></td><td class="cb-top cb-left"></td>
+</tr>
+</table>
+</div>
+<div class="panel">
+<img id="webcam" src="/images/latest-image.jpg" />
+</div>
+</div>
+</body>
+</html>
