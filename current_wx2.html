@@ -119,6 +119,12 @@ smallest {
 .tick.short.deg0:after {
   border: 1px solid #9900ee;
 }
+.tick.short.rh10:after {
+  border: 1px solid brown;
+}
+.tick.short.rh90:after {
+  border: 1px solid green;
+}
 .NNE { transform: rotate(23deg); }
 .NE { transform: rotate(45deg); }
 .ENE { transform: rotate(68deg); }
@@ -261,8 +267,8 @@ console.log("***NOT DONE ROTATING - jumping to "+current_dir_end);
 	document.getElementById("curr_temp").innerHTML=o.curr_data.curr_temp[0];
 	document.getElementById("curr_temp").style.color=warm_cold_colors[o.curr_data.curr_temp[1]];
 	document.getElementById("curr_temp").style.fontWeight=font_weights[o.curr_data.curr_temp[1]];
-var temp_rot=-101.25+parseFloat(o.curr_data.curr_temp[0])*2.25;
-document.getElementById("temp_needle").style.transform="rotate("+temp_rot+"deg)";
+	var temp_rot=-101.25+parseFloat(o.curr_data.curr_temp[0])*2.25;
+	document.getElementById("temp_needle").style.transform="rotate("+temp_rot+"deg)";
 	document.getElementById("temp_needle").style.zIndex=999;
 	document.getElementById("curr_dewp").innerHTML=o.curr_data.curr_dewp[0];
 	document.getElementById("curr_dewp").style.color=wet_dry_colors[o.curr_data.curr_dewp[1]];
@@ -270,6 +276,9 @@ document.getElementById("temp_needle").style.transform="rotate("+temp_rot+"deg)"
 	document.getElementById("curr_rh").innerHTML=o.curr_data.curr_rh[0];
 	document.getElementById("curr_rh").style.color=wet_dry_colors[o.curr_data.curr_rh[1]];
 	document.getElementById("curr_rh").style.fontWeight=font_weights[o.curr_data.curr_rh[1]];
+	var rh_rot=-135.+parseFloat(o.curr_data.curr_rh[0])*2.7;
+	document.getElementById("rh_needle").style.transform="rotate("+rh_rot+"deg)";
+	document.getElementById("rh_needle").style.zIndex=999;
 	document.getElementById("curr_press").innerHTML=o.curr_data.curr_press[0];
 	document.getElementById("curr_press").style.color=warm_cold_colors[o.curr_data.curr_press[1]];
 	document.getElementById("curr_press").style.fontWeight=font_weights[o.curr_data.curr_press[1]];
@@ -511,7 +520,7 @@ function rotate(id,from,to,rot)
 <img id="webcam" src="/images/latest-image.jpg" />
 </div>
 <div class="panel">
-<div class="dial">
+<div id="temperature_dial" class="dial">
 <div class="label">TEMP &deg;F</div>
 <div id="temp_needle" class="needle"></div>
 <div class="tick short" style="transform: rotate(-135deg)"></div>
@@ -547,6 +556,39 @@ function rotate(id,from,to,rot)
 <div class="tick shortest" style="transform: rotate(123.75deg)"></div>
 <div class="tick short" style="transform: rotate(135deg)"></div>
 <div class="scale" style="transform: rotate(135deg)">105</div>
+</div>
+</div>
+<div class="panel">
+<div id="rh_dial" class="dial">
+<div class="label">RH %</div>
+<div id="rh_needle" class="needle"></div>
+<div class="tick short" style="transform: rotate(-135deg)"></div>
+<div class="scale" style="transform: rotate(-135deg)">0</div>
+<div class="tick shortest" style="transform: rotate(-121.5deg)"></div>
+<div class="tick short rh10" style="transform: rotate(-108deg)"></div>
+<div class="tick shortest" style="transform: rotate(-94.5deg)"></div>
+<div class="tick short" style="transform: rotate(-81deg)"></div>
+<div class="scale" style="transform: rotate(-81deg)">20</div>
+<div class="tick shortest" style="transform: rotate(-67.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-54deg)"></div>
+<div class="tick shortest" style="transform: rotate(-40.5deg)"></div>
+<div class="tick short" style="transform: rotate(-27deg)"></div>
+<div class="scale" style="transform: rotate(-27deg)">40</div>
+<div class="tick shortest" style="transform: rotate(-13.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(0deg)"></div>
+<div class="tick shortest" style="transform: rotate(13.5deg)"></div>
+<div class="tick short" style="transform: rotate(27deg)"></div>
+<div class="scale" style="transform: rotate(27deg)">60</div>
+<div class="tick shortest" style="transform: rotate(40.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(54deg)"></div>
+<div class="tick shortest" style="transform: rotate(67.5deg)"></div>
+<div class="tick short" style="transform: rotate(81deg)"></div>
+<div class="scale" style="transform: rotate(81deg)">80</div>
+<div class="tick shortest" style="transform: rotate(94.5deg)"></div>
+<div class="tick short rh90" style="transform: rotate(108deg)"></div>
+<div class="tick shortest" style="transform: rotate(121.5deg)"></div>
+<div class="tick short" style="transform: rotate(135deg)"></div>
+<div class="scale" style="transform: rotate(135deg)">100</div>
 </div>
 </div>
 </div>
