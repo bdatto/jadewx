@@ -59,21 +59,6 @@ smallest {
   position: absolute;
   top: 0;
 }
-/*
-.compass .arrow:before {
-  content: "";
-  width: 0;
-  height: 0;
-  position: absolute;
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 6px solid black;
-  top: -18px;
-  left: 50%;
-  margin-left: -8px;
-  z-index: 99;
-}
-*/
 .compass .arrow:after {
   content: "";
   width: 0;
@@ -88,14 +73,14 @@ smallest {
   margin-left: -8px;
   z-index: 99;
 }
-.compass .tick {
+.tick {
   width: 100%;
   height: 100%;
   display: block;
   position: absolute;
   top: 0;
 }
-.compass .tick:after {
+.tick:after {
   content: "";
   width: 0;
   height: 10px;
@@ -105,7 +90,7 @@ smallest {
   left: 50%;
   margin-left: -1px;
 }
-.compass .tick.short:after {
+.tick.short:after {
   content: "";
   width: 0;
   height: 6px;
@@ -115,13 +100,13 @@ smallest {
   left: 50%;
   margin-left: -1px;
 }
-.compass .tick.shortest:after {
+.tick.shortest:after {
   content: "";
   width: 0;
   height: 2px;
   position: absolute;
   border: 1px solid #808080;
-  top: 5px;
+  top: 3px;
   left: 50%;
   margin-left: -1px;
 }
@@ -133,13 +118,56 @@ smallest {
 .SE { transform: rotate(135deg); }
 .SSE { transform: rotate(158deg); }
 .S { transform: rotate(180deg); }
-.SSW { transform: rotate(-158deg); }
+.SSW { transform: rotate(-157deg); }
 .SW { transform: rotate(-135deg); }
-.WSW { transform: rotate(-113deg); }
+.WSW { transform: rotate(-112deg); }
 .W { transform: rotate(-90deg); }
-.WNW { transform: rotate(-68deg); }
+.WNW { transform: rotate(-67deg); }
 .NW { transform: rotate(-45deg); }
-.NNW { transform: rotate(-23deg);}
+.NNW { transform: rotate(-22deg);}
+.temperature-dial {
+  display: block;
+  position: relative;
+  width: 100px;
+  height: 100px;
+  border-radius: 100%;
+  border: 6px solid #5a5a5a;
+  margin-bottom: 5px;
+}
+.temperature-dial .needle {
+  width: 100%;
+  height: 100%;
+  display: block;
+  position: absolute;
+  top: 0;
+}
+.temperature-dial .needle:after {
+  content: "";
+  width: 0;
+  height: 0;
+  position: absolute;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 55px solid crimson;
+  border-bottom-left-radius: 30px;
+  border-bottom-right-radius: 30px;
+  border-top: 5px solid transparent;
+  top: -5px;
+  left: 50%;
+  margin-left: -5px;
+  z-index: 999;
+}
+.temperature-dial .label {
+  width: 76px;
+  height: 76px;
+  display: block;
+  position: absolute;
+  font-size: 12px;
+  font-weight: bold;
+  padding: 12px;
+  text-align: center;
+  z-index: 90;
+}
 .cb-top {
   border-top: thin solid #d0d0d0;
 }
@@ -214,6 +242,9 @@ console.log("***NOT DONE ROTATING - jumping to "+current_dir_end);
 	document.getElementById("curr_temp").innerHTML=o.curr_data.curr_temp[0];
 	document.getElementById("curr_temp").style.color=warm_cold_colors[o.curr_data.curr_temp[1]];
 	document.getElementById("curr_temp").style.fontWeight=font_weights[o.curr_data.curr_temp[1]];
+var temp_rot=-105.75+parseFloat(o.curr_data.curr_temp[0])*2.35;
+document.getElementById("temp_needle").style.transform="rotate("+temp_rot+"deg)";
+	document.getElementById("temp_needle").style.zIndex=999;
 	document.getElementById("curr_dewp").innerHTML=o.curr_data.curr_dewp[0];
 	document.getElementById("curr_dewp").style.color=wet_dry_colors[o.curr_data.curr_dewp[1]];
 	document.getElementById("curr_dewp").style.fontWeight=font_weights[o.curr_data.curr_dewp[1]];
@@ -459,6 +490,44 @@ function rotate(id,from,to,rot)
 </div>
 <div class="panel">
 <img id="webcam" src="/images/latest-image.jpg" />
+</div>
+<div class="panel">
+<center><strong>TEMP</strong></center>
+<div class="temperature-dial">
+<div id="temp_needle" class="needle"></div>
+<div class="tick short" style="transform: rotate(-141deg)"></div>
+<div class="label" style="transform: rotate(-141deg)">-15</div>
+<div class="tick shortest" style="transform: rotate(-129.25deg)"></div>
+<div class="tick shortest" style="transform: rotate(-117.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-105.75deg)"></div>
+<div class="tick short" style="transform: rotate(-94deg)"></div>
+<div class="label" style="transform: rotate(-94deg)">5</div>
+<div class="tick shortest" style="transform: rotate(-82.25deg)"></div>
+<div class="tick shortest" style="transform: rotate(-70.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-58.75deg)"></div>
+<div class="tick short" style="transform: rotate(-47deg)"></div>
+<div class="label" style="transform: rotate(-47deg)">25</div>
+<div class="tick shortest" style="transform: rotate(-35.25deg)"></div>
+<div class="tick shortest" style="transform: rotate(-23.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(-11.75deg)"></div>
+<div class="tick short" style="transform: rotate(0deg)"></div>
+<div class="label" style="transform: rotate(0deg)">45</div>
+<div class="tick shortest" style="transform: rotate(11.75deg)"></div>
+<div class="tick shortest" style="transform: rotate(23.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(35.25deg)"></div>
+<div class="tick short" style="transform: rotate(47deg)"></div>
+<div class="label" style="transform: rotate(47deg)">65</div>
+<div class="tick shortest" style="transform: rotate(58.75deg)"></div>
+<div class="tick shortest" style="transform: rotate(70.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(82.25deg)"></div>
+<div class="tick short" style="transform: rotate(94deg)"></div>
+<div class="label" style="transform: rotate(94deg)">85</div>
+<div class="tick shortest" style="transform: rotate(105.75deg)"></div>
+<div class="tick shortest" style="transform: rotate(117.5deg)"></div>
+<div class="tick shortest" style="transform: rotate(129.25deg)"></div>
+<div class="tick short" style="transform: rotate(141deg)"></div>
+<div class="label" style="transform: rotate(141deg)">105</div>
+</div>
 </div>
 </div>
 </body>
