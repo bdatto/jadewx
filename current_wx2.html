@@ -123,7 +123,7 @@ smallest {
   border: 1px solid brown;
 }
 .tick.short.rh90:after {
-  border: 1px solid green;
+  border: 1px solid #229954;
 }
 .NNE { transform: rotate(23deg); }
 .NE { transform: rotate(45deg); }
@@ -178,10 +178,10 @@ smallest {
   z-index: 998;
 }
 .dial .scale {
-  width: 76px;
-  height: 76px;
   display: block;
   position: absolute;
+  width: 76px;
+  height: 76px;
   font-size: 12px;
   font-weight: bold;
   padding: 12px;
@@ -217,6 +217,9 @@ smallest {
   border: 5px solid #d0d0d0;
   border-radius: 15px;
   margin: 2px
+}
+.panel .no-border {
+  border: 0px;
 }
 </style>
 <script language="javascript" type="text/javascript">
@@ -302,6 +305,9 @@ console.log("***NOT DONE ROTATING - jumping to "+current_dir_end);
 	document.getElementById("rain_day").innerHTML=o.curr_data.rain_day[0];
 	document.getElementById("rain_day").style.color=wet_dry_colors[o.curr_data.rain_day[1]];
 	document.getElementById("rain_day").style.fontWeight=font_weights[o.curr_data.rain_day[1]];
+	var rain_rot=-126.+parseFloat(o.curr_data.rain_day[0])*180.;
+	document.getElementById("rain_needle").style.transform="rotate("+rain_rot+"deg)";
+	document.getElementById("rain_needle").style.zIndex=999;
 	document.getElementById("hi_temp").innerHTML=o.extremes.hi_temp[0];
 	document.getElementById("hi_temp_time").innerHTML=o.extremes.hi_temp[1];
 	document.getElementById("lo_temp").innerHTML=o.extremes.lo_temp[0];
@@ -412,7 +418,7 @@ function rotate(id,from,to,rot)
 <body style="font-family: arial,sans-serif; font-size: 16px" onload="setInterval('get_data()',5000); setInterval('refresh_webcam()',600000)">
 <div>
 <div class="panel" style="width: 485px; height: 500px">
-<h2 style="margin-top: 5px">Current Weather:</h2>
+<h2 style="margin-top: 5px">Current Conditions:</h2>
 <div>
 <table align="center" cellspacing="0" cellpadding="0" border="0">
 <tr>
@@ -530,25 +536,24 @@ function rotate(id,from,to,rot)
 </tr>
 </table>
 </div>
+<div style="clear: left"></div>
 <div class="panel">
-<img id="webcam" src="/images/latest-image.jpg" />
-</div>
-<div class="panel">
+<div class="panel no-border">
 <div id="temperature_dial" class="dial">
 <div class="label" style="top: 83px">TEMP<br />&deg;F</div>
 <div id="temp_needle" class="needle"></div>
 <div class="tick short" style="transform: rotate(-126deg)"></div>
-<div class="scale" style="transform: rotate(-126deg)">-15</div>
+<div class="scale" style="transform: rotate(-126deg)"><div style="transform: rotate(126deg); margin-top: 2px">-15</div></div>
 <div class="tick shortest" style="transform: rotate(-115.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(-105deg)"></div>
 <div class="tick short deg0" style="transform: rotate(-94.5deg)"></div>
 <div class="tick short" style="transform: rotate(-84deg)"></div>
-<div class="scale" style="transform: rotate(-84deg)">5</div>
+<div class="scale" style="transform: rotate(-84deg)"><div style="transform: rotate(84deg)">5</div></div>
 <div class="tick shortest" style="transform: rotate(-73.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(-63deg)"></div>
 <div class="tick shortest" style="transform: rotate(-52.5deg)"></div>
 <div class="tick short" style="transform: rotate(-42deg)"></div>
-<div class="scale" style="transform: rotate(-42deg)">25</div>
+<div class="scale" style="transform: rotate(-42deg)"><div style="transform: rotate(42deg)">25</div></div>
 <div class="tick shortest" style="transform: rotate(-31.5deg)"></div>
 <div class="tick short deg32" style="transform: rotate(-27.3deg)"></div>
 <div class="tick shortest" style="transform: rotate(-21deg)"></div>
@@ -559,71 +564,71 @@ function rotate(id,from,to,rot)
 <div class="tick shortest" style="transform: rotate(21deg)"></div>
 <div class="tick shortest" style="transform: rotate(31.5deg)"></div>
 <div class="tick short" style="transform: rotate(42deg)"></div>
-<div class="scale" style="transform: rotate(42deg)">65</div>
+<div class="scale" style="transform: rotate(42deg)"><div style="transform: rotate(-42deg)">65</div></div>
 <div class="tick shortest" style="transform: rotate(52.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(63deg)"></div>
 <div class="tick shortest" style="transform: rotate(73.5deg)"></div>
 <div class="tick short" style="transform: rotate(84deg)"></div>
-<div class="scale" style="transform: rotate(84deg)">85</div>
+<div class="scale" style="transform: rotate(84deg)"><div style="transform: rotate(-84deg)">85</div></div>
 <div class="tick short deg90" style="transform: rotate(94.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(105deg)"></div>
 <div class="tick shortest" style="transform: rotate(115.5deg)"></div>
 <div class="tick short" style="transform: rotate(126deg)"></div>
-<div class="scale" style="transform: rotate(126deg)">105</div>
+<div class="scale" style="transform: rotate(126deg)"><div style="transform: rotate(-126deg); margin-top: 2px">105</div></div>
 </div>
 </div>
-<div class="panel">
+<div class="panel no-border">
 <div id="rh_dial" class="dial">
 <div class="label" style="top: 83px">REL HUM<br />%</div>
 <div id="rh_needle" class="needle"></div>
 <div class="tick short" style="transform: rotate(-125deg)"></div>
-<div class="scale" style="transform: rotate(-125deg)">0</div>
+<div class="scale" style="transform: rotate(-125deg)"><div style="transform: rotate(125deg); margin-top: -2px; margin-left: 4px">0</div></div>
 <div class="tick shortest" style="transform: rotate(-112.5deg)"></div>
 <div class="tick short rh10" style="transform: rotate(-100deg)"></div>
 <div class="tick shortest" style="transform: rotate(-87.5deg)"></div>
 <div class="tick short" style="transform: rotate(-75deg)"></div>
-<div class="scale" style="transform: rotate(-75deg)">20</div>
+<div class="scale" style="transform: rotate(-75deg)"><div style="transform: rotate(75deg)">20</div></div>
 <div class="tick shortest" style="transform: rotate(-62.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(-50deg)"></div>
 <div class="tick shortest" style="transform: rotate(-37.5deg)"></div>
 <div class="tick short" style="transform: rotate(-25deg)"></div>
-<div class="scale" style="transform: rotate(-25deg)">40</div>
+<div class="scale" style="transform: rotate(-25deg)"><div style="transform: rotate(25deg)">40</div></div>
 <div class="tick shortest" style="transform: rotate(-12.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(0deg)"></div>
 <div class="tick shortest" style="transform: rotate(12.5deg)"></div>
 <div class="tick short" style="transform: rotate(25deg)"></div>
-<div class="scale" style="transform: rotate(25deg)">60</div>
+<div class="scale" style="transform: rotate(25deg)"><div style="transform: rotate(-25deg)">60</div></div>
 <div class="tick shortest" style="transform: rotate(37.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(50deg)"></div>
 <div class="tick shortest" style="transform: rotate(62.5deg)"></div>
 <div class="tick short" style="transform: rotate(75deg)"></div>
-<div class="scale" style="transform: rotate(75deg)">80</div>
+<div class="scale" style="transform: rotate(75deg)"><div style="transform: rotate(-75deg)">80</div></div>
 <div class="tick shortest" style="transform: rotate(87.5deg)"></div>
 <div class="tick short rh90" style="transform: rotate(100deg)"></div>
 <div class="tick shortest" style="transform: rotate(112.5deg)"></div>
 <div class="tick short" style="transform: rotate(125deg)"></div>
-<div class="scale" style="transform: rotate(125deg)">100</div>
+<div class="scale" style="transform: rotate(125deg)"><div style="transform: rotate(-125deg); margin-top: 2px">100</div></div>
 </div>
 </div>
-<div class="panel">
+<div class="panel no-border">
 <div id="wind_dial" class="dial">
 <div class="label" style="top: 81px">WIND<br />mph</div>
 <div id="wind_needle" class="needle"></div>
 <div id="gust_needle" class="needle short"></div>
 <div class="tick short" style="transform: rotate(-126deg)"></div>
-<div class="scale" style="transform: rotate(-126deg)">0</div>
+<div class="scale" style="transform: rotate(-126deg)"><div style="transform: rotate(126deg)">0</div></div>
 <div class="tick shortest" style="transform: rotate(-117.6deg)"></div>
 <div class="tick shortest" style="transform: rotate(-109.2deg)"></div>
 <div class="tick shortest" style="transform: rotate(-100.8deg)"></div>
 <div class="tick shortest" style="transform: rotate(-92.4deg)"></div>
 <div class="tick short" style="transform: rotate(-84deg)"></div>
-<div class="scale" style="transform: rotate(-84deg)">10</div>
+<div class="scale" style="transform: rotate(-84deg)"><div style="transform: rotate(84deg)">10</div></div>
 <div class="tick shortest" style="transform: rotate(-75.6deg)"></div>
 <div class="tick shortest" style="transform: rotate(-67.2deg)"></div>
 <div class="tick shortest" style="transform: rotate(-58.8deg)"></div>
 <div class="tick shortest" style="transform: rotate(-50.4deg)"></div>
 <div class="tick short" style="transform: rotate(-42deg)"></div>
-<div class="scale" style="transform: rotate(-42deg)">20</div>
+<div class="scale" style="transform: rotate(-42deg)"><div style="transform: rotate(42deg)">20</div></div>
 <div class="tick shortest" style="transform: rotate(-33.6deg)"></div>
 <div class="tick shortest" style="transform: rotate(-25.2deg)"></div>
 <div class="tick shortest" style="transform: rotate(-16.8deg)"></div>
@@ -635,53 +640,98 @@ function rotate(id,from,to,rot)
 <div class="tick shortest" style="transform: rotate(25.2deg)"></div>
 <div class="tick shortest" style="transform: rotate(33.6deg)"></div>
 <div class="tick short" style="transform: rotate(42deg)"></div>
-<div class="scale" style="transform: rotate(42deg)">40</div>
+<div class="scale" style="transform: rotate(42deg)"><div style="transform: rotate(-42deg)">40</div></div>
 <div class="tick shortest" style="transform: rotate(50.4deg)"></div>
 <div class="tick shortest" style="transform: rotate(58.8deg)"></div>
 <div class="tick shortest" style="transform: rotate(67.2deg)"></div>
 <div class="tick shortest" style="transform: rotate(75.6deg)"></div>
 <div class="tick short" style="transform: rotate(84deg)"></div>
-<div class="scale" style="transform: rotate(84deg)">50</div>
+<div class="scale" style="transform: rotate(84deg)"><div style="transform: rotate(-84deg)">50</div></div>
 <div class="tick shortest" style="transform: rotate(92.4deg)"></div>
 <div class="tick shortest" style="transform: rotate(100.8deg)"></div>
 <div class="tick shortest" style="transform: rotate(109.2deg)"></div>
 <div class="tick shortest" style="transform: rotate(117.6deg)"></div>
 <div class="tick short" style="transform: rotate(126deg)"></div>
-<div class="scale" style="transform: rotate(126deg)">60</div>
+<div class="scale" style="transform: rotate(126deg)"><div style="transform: rotate(-126deg)">60</div></div>
 </div>
 </div>
-<div class="panel">
+<div class="panel no-border">
 <div id="barom_dial" class="dial">
 <div class="label" style="top: 81px">BAROM<br />in Hg</div>
 <div id="barom_needle" class="needle"></div>
 <div class="tick short" style="transform: rotate(-125deg)"></div>
-<div class="scale" style="transform: rotate(-125deg)">29</div>
+<div class="scale" style="transform: rotate(-125deg)"><div style="transform: rotate(125deg); margin-top: 5px; margin-left: -6px">29.00</div></div>
 <div class="tick shortest" style="transform: rotate(-112.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(-100deg)"></div>
 <div class="tick shortest" style="transform: rotate(-87.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(-75deg)"></div>
 <div class="tick short" style="transform: rotate(-62.5deg)"></div>
-<div class="scale" style="transform: rotate(-62.5deg)">29.5</div>
+<div class="scale" style="transform: rotate(-62.5deg)"><div style="transform: rotate(62.5deg); margin-top: 8px">29.50</div></div>
 <div class="tick shortest" style="transform: rotate(-50deg)"></div>
 <div class="tick shortest" style="transform: rotate(-37.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(-25deg)"></div>
 <div class="tick shortest" style="transform: rotate(-12.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(25deg)"></div>
 <div class="tick short" style="transform: rotate(0deg)"></div>
-<div class="scale" style="transform: rotate(0deg)">30</div>
+<div class="scale" style="transform: rotate(0deg)">30.00</div>
 <div class="tick shortest" style="transform: rotate(12.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(25deg)"></div>
 <div class="tick shortest" style="transform: rotate(37.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(50deg)"></div>
 <div class="tick short" style="transform: rotate(62.5deg)"></div>
-<div class="scale" style="transform: rotate(62.5deg)">30.5</div>
+<div class="scale" style="transform: rotate(62.5deg)"><div style="transform: rotate(-62.5deg); margin-top: 8px">30.50</div></div>
 <div class="tick shortest" style="transform: rotate(75deg)"></div>
 <div class="tick shortest" style="transform: rotate(87.5deg)"></div>
 <div class="tick shortest" style="transform: rotate(100deg)"></div>
 <div class="tick shortest" style="transform: rotate(112.5deg)"></div>
 <div class="tick short" style="transform: rotate(125deg)"></div>
-<div class="scale" style="transform: rotate(125deg)">31</div>
+<div class="scale" style="transform: rotate(125deg)"><div style="transform: rotate(-125deg); margin-top: 5px; margin-left: 6px">31.00</div></div>
 </div>
+</div>
+<div class="panel no-border">
+<div id="rain_dial" class="dial">
+<div class="label" style="top: 81px">RAIN<br />in</div>
+<div id="rain_needle" class="needle"></div>
+<div class="tick short" style="transform: rotate(-126deg)"></div>
+<div class="scale" style="transform: rotate(-126deg)"><div style="transform: rotate(126deg); margin-top: 2px">0.00</div></div>
+<div class="tick shortest" style="transform: rotate(-115deg)"></div>
+<div class="tick shortest" style="transform: rotate(-106deg)"></div>
+<div class="tick shortest" style="transform: rotate(-97deg)"></div>
+<div class="tick shortest" style="transform: rotate(-88deg)"></div>
+<div class="tick shortest" style="transform: rotate(-79deg)"></div>
+<div class="tick shortest" style="transform: rotate(-70deg)"></div>
+<div class="tick short" style="transform: rotate(-63deg)"></div>
+<div class="scale" style="transform: rotate(-63deg)"><div style="transform: rotate(63deg); margin-top: 5px">0.35</div></div>
+<div class="tick shortest" style="transform: rotate(-54deg)"></div>
+<div class="tick shortest" style="transform: rotate(-45deg)"></div>
+<div class="tick shortest" style="transform: rotate(-36deg)"></div>
+<div class="tick shortest" style="transform: rotate(-27deg)"></div>
+<div class="tick shortest" style="transform: rotate(-18deg)"></div>
+<div class="tick shortest" style="transform: rotate(-9deg)"></div>
+<div class="tick short" style="transform: rotate(0deg)"></div>
+<div class="scale" style="transform: rotate(0deg)">0.70</div>
+<div class="tick shortest" style="transform: rotate(9deg)"></div>
+<div class="tick shortest" style="transform: rotate(18deg)"></div>
+<div class="tick shortest" style="transform: rotate(27deg)"></div>
+<div class="tick shortest" style="transform: rotate(36deg)"></div>
+<div class="tick shortest" style="transform: rotate(45deg)"></div>
+<div class="tick shortest" style="transform: rotate(54deg)"></div>
+<div class="tick short" style="transform: rotate(63deg)"></div>
+<div class="scale" style="transform: rotate(63deg)"><div style="transform: rotate(-63deg); margin-top: 5px">1.05</div></div>
+<div class="tick shortest" style="transform: rotate(70deg)"></div>
+<div class="tick shortest" style="transform: rotate(79deg)"></div>
+<div class="tick shortest" style="transform: rotate(88deg)"></div>
+<div class="tick shortest" style="transform: rotate(97deg)"></div>
+<div class="tick shortest" style="transform: rotate(106deg)"></div>
+<div class="tick shortest" style="transform: rotate(115deg)"></div>
+<div class="tick short" style="transform: rotate(126deg)"></div>
+<div class="scale" style="transform: rotate(126deg)"><div style="transform: rotate(-126deg); margin-top: 2px">1.40</div></div>
+</div>
+</div>
+</div>
+<div style="clear: left"></div>
+<div class="panel">
+<img id="webcam" src="/images/latest-image.jpg" />
 </div>
 </div>
 </body>
