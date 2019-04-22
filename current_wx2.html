@@ -105,7 +105,7 @@ smallest {
   width: 0;
   height: 2px;
   position: absolute;
-  border: 1px solid #808080;
+  border: thin solid #808080;
   top: 3px;
   left: 50%;
   margin-left: -1px;
@@ -164,16 +164,21 @@ smallest {
   border-left: 5px solid transparent;
   border-right: 5px solid transparent;
   border-bottom: 55px solid crimson;
-  border-bottom-left-radius: 30px;
-  border-bottom-right-radius: 30px;
+  border-bottom-left-radius: 10px;
+  border-bottom-right-radius: 10px;
   border-top: 5px solid transparent;
   top: -5px;
   left: 50%;
   margin-left: -5px;
   z-index: 999;
 }
-.dial .needle.short:after {
+.dial .needle.gust:after {
   border-bottom: 50px solid #7532ff;
+  top: 0px;
+  z-index: 998;
+}
+.dial .needle.dewp:after {
+  border-bottom: 50px solid #229954;
   top: 0px;
   z-index: 998;
 }
@@ -287,6 +292,9 @@ console.log("***NOT DONE ROTATING - jumping to "+current_dir_end);
 	document.getElementById("curr_dewp").innerHTML=o.curr_data.curr_dewp[0];
 	document.getElementById("curr_dewp").style.color=wet_dry_colors[o.curr_data.curr_dewp[1]];
 	document.getElementById("curr_dewp").style.fontWeight=font_weights[o.curr_data.curr_dewp[1]];
+	var dewp_rot=-94.5+parseFloat(o.curr_data.curr_dewp[0])*2.1;
+	document.getElementById("dewp_needle").style.transform="rotate("+dewp_rot+"deg)";
+	document.getElementById("dewp_needle").style.zIndex=998;
 	document.getElementById("curr_rh").innerHTML=o.curr_data.curr_rh[0];
 	document.getElementById("curr_rh").style.color=wet_dry_colors[o.curr_data.curr_rh[1]];
 	document.getElementById("curr_rh").style.fontWeight=font_weights[o.curr_data.curr_rh[1]];
@@ -542,6 +550,7 @@ function rotate(id,from,to,rot)
 <div id="temperature_dial" class="dial">
 <div class="label" style="top: 83px">TEMP<br />&deg;F</div>
 <div id="temp_needle" class="needle"></div>
+<div id="dewp_needle" class="needle dewp"></div>
 <div class="tick short" style="transform: rotate(-126deg)"></div>
 <div class="scale" style="transform: rotate(-126deg)"><div style="transform: rotate(126deg); margin-top: 2px">-15</div></div>
 <div class="tick shortest" style="transform: rotate(-115.5deg)"></div>
@@ -614,7 +623,7 @@ function rotate(id,from,to,rot)
 <div id="wind_dial" class="dial">
 <div class="label" style="top: 81px">WIND<br />mph</div>
 <div id="wind_needle" class="needle"></div>
-<div id="gust_needle" class="needle short"></div>
+<div id="gust_needle" class="needle gust"></div>
 <div class="tick short" style="transform: rotate(-126deg)"></div>
 <div class="scale" style="transform: rotate(-126deg)"><div style="transform: rotate(126deg)">0</div></div>
 <div class="tick shortest" style="transform: rotate(-117.6deg)"></div>
