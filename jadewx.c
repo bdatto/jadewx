@@ -618,6 +618,8 @@ void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather)
   current_weather->barom=((buffer[210] >> 4)*10000.+(buffer[210] & 0xf)*1000.+(buffer[211] >> 4)*100.+(buffer[211] & 0xf)*10.+(buffer[212] >> 4))/100.;
 }
 
+//const size_t HISTORY_SIZE=300;
+const size_t HISTORY_SIZE=60;
 typedef struct {
   int this_addr,latest_addr;
   float temp_out,wspd,wgust,rain_raw,barom;
@@ -625,6 +627,38 @@ typedef struct {
   char datetime[20];
   int day_num;
 } History;
+History *history_queue=NULL;
+const size_t FIVE_MINUTE_DATA_SIZE=288;
+typedef struct {
+  float temp_out,wspd,wgust,barom,rain_day;
+  int rh_out,wdir;
+} FiveMinuteData;
+FiveMinuteData *data5min_array=NULL;
+const char *FIVE_MINUTE_DATA_TIMES[]={"18:01","18:06","18:11","18:16","18:21","18:26","18:31","18:36","18:41","18:46","18:51","18:56","19:01","19:06","19:11","19:16","19:21","19:26","19:31","19:36","19:41","19:46","19:51","19:56","20:01","20:06","20:11","20:16","20:21","20:26","20:31","20:36","20:41","20:46","20:51","20:56","21:01","21:06","21:11","21:16","21:21","21:26","21:31","21:36","21:41","21:46","21:51","21:56","22:01","22:06","22:11","22:16","22:21","22:26","22:31","22:36","22:41","22:46","22:51","22:56","23:01","23:06","23:11","23:16","23:21","23:26","23:31","23:36","23:41","23:46","23:51","23:56","00:01","00:06","00:11","00:16","00:21","00:26","00:31","00:36","00:41","00:46","00:51","00:56","01:01","01:06","01:11","01:16","01:21","01:26","01:31","01:36","01:41","01:46","01:51","01:56","02:01","02:06","02:11","02:16","02:21","02:26","02:31","02:36","02:41","02:46","02:51","02:56","03:01","03:06","03:11","03:16","03:21","03:26","03:31","03:36","03:41","03:46","03:51","03:56","04:01","04:06","04:11","04:16","04:21","04:26","04:31","04:36","04:41","04:46","04:51","04:56","05:01","05:06","05:11","05:16","05:21","05:26","05:31","05:36","05:41","05:46","05:51","05:56","06:01","06:06","06:11","06:16","06:21","06:26","06:31","06:36","06:41","06:46","06:51","06:56","07:01","07:06","07:11","07:16","07:21","07:26","07:31","07:36","07:41","07:46","07:51","07:56","08:01","08:06","08:11","08:16","08:21","08:26","08:31","08:36","08:41","08:46","08:51","08:56","09:01","09:06","09:11","09:16","09:21","09:26","09:31","09:36","09:41","09:46","09:51","09:56","10:01","10:06","10:11","10:16","10:21","10:26","10:31","10:36","10:41","10:46","10:51","10:56","11:01","11:06","11:11","11:16","11:21","11:26","11:31","11:36","11:41","11:46","11:51","11:56","12:01","12:06","12:11","12:16","12:21","12:26","12:31","12:36","12:41","12:46","12:51","12:56","13:01","13:06","13:11","13:16","13:21","13:26","13:31","13:36","13:41","13:46","13:51","13:56","14:01","14:06","14:11","14:16","14:21","14:26","14:31","14:36","14:41","14:46","14:51","14:56","15:01","15:06","15:11","15:16","15:21","15:26","15:31","15:36","15:41","15:46","15:51","15:56","16:01","16:06","16:11","16:16","16:21","16:26","16:31","16:36","16:41","16:46","16:51","16:56","17:01","17:06","17:11","17:16","17:21","17:26","17:31","17:36","17:41","17:46","17:51","17:56"};
+
+void reset_for_new_day(int hour,int minute)
+{
+  if (hour == 18 && minute == 1) {
+    extremes.temp_out_max=-999.9;
+    extremes.temp_out_min=999.9;
+    extremes.wspd_max=-999.9;
+    extremes.wspd_max_wdir=-999;
+    extremes.wgust_max=-999.9;
+    extremes.barom_max=-9999.9;
+    extremes.barom_min=9999.9;
+    extremes.rh_max=-999;
+    extremes.rh_min=999;
+    for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	data5min_array[n].temp_out=-999.9;
+	data5min_array[n].wspd=-999.9;
+	data5min_array[n].wgust=-999.9;
+	data5min_array[n].barom=-999.9;
+	data5min_array[n].rain_day=-999.9;
+	data5min_array[n].rh_out=-999;
+	data5min_array[n].wdir=-999;
+    }
+  }
+}
 
 int decode_history(unsigned char *buffer,History *history)
 {
@@ -658,16 +692,115 @@ int decode_history(unsigned char *buffer,History *history)
   int minute=(buffer[29] >> 4)*10+(buffer[29] & 0xf);
   sprintf(history->datetime,"20%02d-%02d-%02d %02d:%02d:00",(buffer[25] >> 4)*10+(buffer[25] & 0xf),(buffer[26] >> 4)*10+(buffer[26] & 0xf),history->day_num,hour,minute);
   history->datetime[19]='\0';
-  if (hour == 18 && minute == 1) {
-    extremes.temp_out_max=-999.9;
-    extremes.temp_out_min=999.9;
-    extremes.wspd_max=-999.9;
-    extremes.wspd_max_wdir=-999;
-    extremes.wgust_max=-999.9;
-    extremes.barom_max=-9999.9;
-    extremes.barom_min=9999.9;
-    extremes.rh_max=-999;
-    extremes.rh_min=999;
+  reset_for_new_day(hour,minute);
+  if (history->latest_addr == history->this_addr && (minute % 5) == 1) {
+    int hr=hour;
+    if (hr < 18) {
+	hr+=24;
+    }
+    int data5min_index=(hr-18)*12+(minute/5);
+    if (data5min_index >= 0 && data5min_index < FIVE_MINUTE_DATA_SIZE) {
+	data5min_array[data5min_index].temp_out=history->temp_out;
+	data5min_array[data5min_index].wspd=history->wspd;
+	data5min_array[data5min_index].wgust=history->wgust;
+	data5min_array[data5min_index].barom=history->barom*0.02953;
+	data5min_array[data5min_index].rain_day=rain_day;
+	data5min_array[data5min_index].rh_out=history->rh_out;
+	data5min_array[data5min_index].wdir=history->wdir;
+	FILE *fp;
+	if ( (fp=fopen("/home/wx/www/data5min.json","w")) != NULL) {
+	  fprintf(fp,"{ \"temps\": [");
+	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	    if (n > 0) {
+		fprintf(fp,", ");
+	    }
+	    if (data5min_array[n].temp_out > -999.) {
+		fprintf(fp,"%5.1f",data5min_array[n].temp_out);
+	    }
+	    else {
+		fprintf(fp,"  NaN");
+	    }
+	  }
+	  fprintf(fp,"], \"wspds\": [");
+	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	    if (n > 0) {
+		fprintf(fp,", ");
+	    }
+	    if (data5min_array[n].wspd > -999.) {
+		fprintf(fp,"%4.1f",data5min_array[n].wspd);
+	    }
+	    else {
+		fprintf(fp," NaN");
+	    }
+	  }
+	  fprintf(fp,"], \"wgusts\": [");
+	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	    if (n > 0) {
+		fprintf(fp,", ");
+	    }
+	    if (data5min_array[n].wgust > -999.) {
+		fprintf(fp,"%4.1f",data5min_array[n].wgust);
+	    }
+	    else {
+		fprintf(fp," NaN");
+	    }
+	  }
+	  fprintf(fp,"], \"wdirs\": [");
+	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	    if (n > 0) {
+		fprintf(fp,", ");
+	    }
+	    if (data5min_array[n].wdir > -999) {
+		fprintf(fp,"%3d",data5min_array[n].wdir);
+	    }
+	    else {
+		fprintf(fp,"NaN");
+	    }
+	  }
+	  fprintf(fp,"], \"rhs\": [");
+	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	    if (n > 0) {
+		fprintf(fp,", ");
+	    }
+	    if (data5min_array[n].rh_out > -999) {
+		fprintf(fp,"%3d",data5min_array[n].rh_out);
+	    }
+	    else {
+		fprintf(fp,"NaN");
+	    }
+	  }
+	  fprintf(fp,"], \"pressures\": [");
+	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	    if (n > 0) {
+		fprintf(fp,", ");
+	    }
+	    if (data5min_array[n].barom > -999.) {
+		fprintf(fp,"%6.2f",data5min_array[n].barom);
+	    }
+	    else {
+		fprintf(fp,"   NaN");
+	    }
+	  }
+	  fprintf(fp,"], \"rain_days\": [");
+	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+	    if (n > 0) {
+		fprintf(fp,", ");
+	    }
+	    if (data5min_array[n].rain_day > -999.) {
+		fprintf(fp,"%5.2f",data5min_array[n].rain_day);
+	    }
+	    else {
+		fprintf(fp,"  NaN");
+	    }
+	  }
+	  fprintf(fp,"]");
+	  fprintf(fp," }\n");
+	  fclose(fp);
+	}
+    }
+    else {
+	printf("***FiveMinuteData index out of range: %d %d %d %d\n",hour,hr,minute,data5min_index);
+    }
   }
   if (history->this_addr <= history->latest_addr) {
     if (history->temp_out > extremes.temp_out_max) {
@@ -713,9 +846,6 @@ void print_history(History *history)
   last_history_print_time=time(NULL);
 }
 
-//const size_t HISTORY_SIZE=300;
-const size_t HISTORY_SIZE=60;
-History *history_queue=NULL;
 size_t curr_hidx=0,last_hidx=0;
 const char *HISTORY_INSERT="insert into wx.history values(%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update haddr = values(haddr)";
 char *store_buffer=NULL;
@@ -1115,6 +1245,7 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	latest_haddr=0xfffff;
     }
     printf("last history address in the database: %d\n",latest_haddr);
+
     time_t t=time(NULL);
     struct tm time_now;
     localtime_r(&t,&time_now);
@@ -1254,6 +1385,28 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	}
     }
     latest_haddr=history->latest_addr-18;
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select substring(from_unixtime(timestamp),12,2),substring(from_unixtime(timestamp),15,2) as minutes,i_temp_out/10.,i_windspd/10.,i_windgust/10.,winddir,i_press/10. from wx.history where timestamp > %d having minutes in (01,06,11,16,21,26,31,36,41,46,51,56)",tstamp);
+printf("%s\n",ibuf);
+    status=mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	MYSQL_ROW row;
+	while (row=mysql_fetch_row(result)) {
+	  int hour=atoi(row[0]);
+	  if (hour < 18) {
+	    hour+=24;
+	  }
+	  int data5min_index=(hour-18)*12+(atoi(row[1])/5);
+	  data5min_array[data5min_index].temp_out=atof(row[2]);
+	  data5min_array[data5min_index].wspd=atof(row[3]);
+	  data5min_array[data5min_index].wgust=atof(row[4]);
+	  data5min_array[data5min_index].wdir=atoi(row[5]);
+	  data5min_array[data5min_index].barom=atof(row[6])*0.02953;
+	}
+	mysql_free_result(result);
+    }
+
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
     char midnight[20];
     sprintf(midnight,"20%02d-%02d-%02d 00:00:00",time_now.tm_year-100,time_now.tm_mon+1,time_now.tm_mday);
@@ -1418,6 +1571,8 @@ printf("setup status: %d\n",status);
 	printf("ready to pair...\n");
 
 	history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
+	data5min_array=(FiveMinuteData *)malloc(FIVE_MINUTE_DATA_SIZE*sizeof(FiveMinuteData));
+	reset_for_new_day(18,1);
 	backfill_history_records(handle,&history_queue[curr_hidx]);
 
 	unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
