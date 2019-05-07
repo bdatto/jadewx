@@ -628,6 +628,10 @@ void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather)
   }
   current_weather->rain_1hr=((buffer[148] >> 4)*100000.+(buffer[148] & 0xf)*10000.+(buffer[149] >> 4)*1000.+(buffer[149] & 0xf)*100.+(buffer[150] >> 4)*10.+(buffer[150] & 0xf))/2540.;
   current_weather->rain_total=((buffer[156] & 0xf)*1000000.+(buffer[157] >> 4)*100000.+(buffer[157] & 0xf)*10000.+(buffer[158] >> 4)*1000.+(buffer[158] & 0xf)*100.+(buffer[159] >> 4)*10.+(buffer[159] & 0xf))/25800.;
+  if (rain_total_base < 0.) {
+    rain_total_base=current_weather->rain_total;
+    printf("total rain set to: %.2f\n",rain_total_base);
+  }
   current_weather->barom=((buffer[210] >> 4)*10000.+(buffer[210] & 0xf)*1000.+(buffer[211] >> 4)*100.+(buffer[211] & 0xf)*10.+(buffer[212] >> 4))/100.;
 }
 
@@ -1012,6 +1016,7 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	if (!backfill_history) {
 	  cwx_idx=1-cwx_idx;
 	  decode_current_wx(&buffer[3],&wx[cwx_idx]);
+	  float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
 	  if (url_buffer == NULL) {
 	    url_buffer=(char *)malloc(4096*sizeof(char));
 	  }
@@ -1029,11 +1034,6 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	    if ( (upload_time-wu_settings.last_upload_time) > wu_settings.upload_interval) {
 		struct tm *tm_result;
 		get_utc_date(upload_time,&tm_result);
-		if (rain_total_base < 0.) {
-		  rain_total_base=wx[cwx_idx].rain_total;
-		  printf("total rain set to: %.2f\n",rain_total_base);
-		}
-		float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
 //printf("rain report: %f %f %f %f\n",computed_rain_day,rain_day,wx[cwx_idx].rain_total,rain_total_base);
 		if (wu_settings.do_upload == 1) {
 /*
@@ -1399,7 +1399,7 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     }
     latest_haddr=history->latest_addr-18;
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
-    sprintf(ibuf,"select substring(from_unixtime(timestamp),12,2),substring(from_unixtime(timestamp),15,2) as minutes,i_temp_out/10.,i_windspd/10.,i_windgust/10.,winddir,rh,i_press/10. from wx.history where timestamp > %d having minutes in (01,06,11,16,21,26,31,36,41,46,51,56)",tstamp);
+    sprintf(ibuf,"select substring(from_unixtime(timestamp),12,2),substring(from_unixtime(timestamp),15,2) as minutes,i_temp_out/10.,rh,i_windspd/10.,i_windgust/10.,winddir,i_press/10. from wx.history where timestamp > %d having minutes in (01,06,11,16,21,26,31,36,41,46,51,56)",tstamp);
 printf("%s\n",ibuf);
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
@@ -1412,10 +1412,10 @@ printf("%s\n",ibuf);
 	  }
 	  int data5min_index=(hour-18)*12+(atoi(row[1])/5);
 	  data5min_array[data5min_index].temp_out=atof(row[2]);
-	  data5min_array[data5min_index].wspd=atof(row[3]);
-	  data5min_array[data5min_index].wgust=atof(row[4]);
-	  data5min_array[data5min_index].wdir=atoi(row[5]);
-	  data5min_array[data5min_index].rh_out=atoi(row[6]);
+	  data5min_array[data5min_index].rh_out=atoi(row[3]);
+	  data5min_array[data5min_index].wspd=atof(row[4]);
+	  data5min_array[data5min_index].wgust=atof(row[5]);
+	  data5min_array[data5min_index].wdir=atoi(row[6]);
 	  data5min_array[data5min_index].barom=atof(row[7])*0.02953;
 	}
 	mysql_free_result(result);
@@ -1492,47 +1492,47 @@ void read_config()
 	    char *tvalue=trim(value);
 	    if (strcmp(tname,"username") == 0) {
 		if (strcmp(section,"mysql") == 0) {
-		  mysql_settings.username=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  mysql_settings.username=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(mysql_settings.username,tvalue);
 		}
 	    }
 	    else if (strcmp(tname,"password") == 0) {
 		if (strcmp(section,"mysql") == 0) {
-		  mysql_settings.password=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  mysql_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(mysql_settings.password,tvalue);
 		}
 		else if (strcmp(section,"Wunderground") == 0) {
-		  wu_settings.password=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  wu_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wu_settings.password,tvalue);
 		}
 	    }
 	    else if (strcmp(tname,"station") == 0) {
 		if (strcmp(section,"Wunderground") == 0) {
-		  wu_settings.station=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  wu_settings.station=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wu_settings.station,tvalue);
 		}
 	    }
 	    else if (strcmp(tname,"wid") == 0) {
 		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.wid=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  wxcloud_settings.wid=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wxcloud_settings.wid,tvalue);
 		}
 	    }
 	    else if (strcmp(tname,"key") == 0) {
 		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.key=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  wxcloud_settings.key=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wxcloud_settings.key,tvalue);
 		}
 	    }
 	    else if (strcmp(tname,"ver") == 0) {
 		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.ver=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  wxcloud_settings.ver=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wxcloud_settings.ver,tvalue);
 		}
 	    }
 	    else if (strcmp(tname,"type") == 0) {
 		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.type=(char *)malloc(strlen(tvalue)*sizeof(char));
+		  wxcloud_settings.type=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wxcloud_settings.type,tvalue);
 		}
 	    }
