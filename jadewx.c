@@ -366,7 +366,7 @@ printf("set state status: %d\n",status);
   rain_day=-999.;
   rain_total_base=-999.;
   wu_settings.last_upload_time=0;
-  wxcloud_settings.last_upload_time=0;
+  wxcloud_settings.last_upload_time=time(NULL);
   last_history_print_time=0;
 }
 
@@ -981,6 +981,21 @@ void *thread_scp(void *ts)
   return NULL;
 }
 
+float degF_to_degC(float temp_F)
+{
+  return (temp_F-32.)*5./9.;
+}
+
+float mph_to_msec(float mph)
+{
+  return mph*0.44704;
+}
+
+float inHg_to_millibars(float inHg)
+{
+  return inHg*33.8639;
+}
+
 char *colors[3]={"black","dodgerblue","crimson"};
 struct {
   short temp_out,dewp_out,rh_out,wdir,wspd,wgust,barom,rain_1hr,rain_day;
@@ -988,6 +1003,8 @@ struct {
 char *insert_buffer=NULL,*url_buffer=NULL;
 const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
 const char *WU_UPLOAD_URL_NO_WIND_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
+const char *WXCLOUD_UPLOAD_URL_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/wspd/%d/wdir/%d/temp/%d/dew/%d/hum/%d/bar/%d";
+const char *WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/temp/%d/dew/%d/hum/%d/bar/%d";
 void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfill_history)
 {
 //  printf("getframe: [%02x]",buffer[5]);
@@ -1017,6 +1034,7 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	  cwx_idx=1-cwx_idx;
 	  decode_current_wx(&buffer[3],&wx[cwx_idx]);
 	  float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
+//printf("rain report: %f %f %f %f\n",computed_rain_day,rain_day,wx[cwx_idx].rain_total,rain_total_base);
 	  if (url_buffer == NULL) {
 	    url_buffer=(char *)malloc(4096*sizeof(char));
 	  }
@@ -1029,87 +1047,98 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 //	  printf("wind gust: %.1fmph\n",wx[cwx_idx].wgust);
 //	  printf("1-hour rain: %.2fin\n",wx[cwx_idx].rain_1hr);
 //	  printf("total rain: %.2fin\n",wx[cwx_idx].rain_total);
-	  if (wu_settings.station != NULL && wu_settings.password != NULL) {
-	    time_t upload_time=time(NULL);
-	    if ( (upload_time-wu_settings.last_upload_time) > wu_settings.upload_interval) {
-		struct tm *tm_result;
-		get_utc_date(upload_time,&tm_result);
-//printf("rain report: %f %f %f %f\n",computed_rain_day,rain_day,wx[cwx_idx].rain_total,rain_total_base);
-		if (wu_settings.do_upload == 1) {
+	  time_t upload_time=time(NULL);
+	  struct tm *tm_result;
+	  get_utc_date(upload_time,&tm_result);
+	  if (wu_settings.do_upload == 1 && wu_settings.station != NULL && wu_settings.password != NULL && (upload_time-wu_settings.last_upload_time) > wu_settings.upload_interval) {
 /*
 struct timespec t1,t2;
 clock_gettime(CLOCK_MONOTONIC,&t1);
 */
-		  if (wx[cwx_idx].wspd >= 0.) {
-		    sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		  }
-		  else {
-		    sprintf(url_buffer,WU_UPLOAD_URL_NO_WIND_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		  }
-		  curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
-		  CURLcode ccode;
-		  if ( (ccode=curl_easy_perform(curl)) == 0) {
-		    if (wx[cwx_idx].wspd >= 0.) {
-			printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		    }
-		    else {
-			printf("WUupload (no wind) %d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		    }
-		  }
-		  else {
-		    printf("***WUupload failed for %04d-%02d-%02d %02d:%02d:%02d with code %d ",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,ccode);
-//printf("%s\n",url_buffer);
-		  }
-/*
-clock_gettime(CLOCK_MONOTONIC,&t2);
-printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_nsec/1000000000.,t1.tv_sec,t1.tv_nsec,t2.tv_sec,t2.tv_nsec);
-*/
+	    if (wx[cwx_idx].wspd >= 0.) {
+		sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+	    }
+	    else {
+		sprintf(url_buffer,WU_UPLOAD_URL_NO_WIND_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+	    }
+	    curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+	    CURLcode ccode;
+	    if ( (ccode=curl_easy_perform(curl)) == 0) {
+		if (wx[cwx_idx].wspd >= 0.) {
+		  printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
 		}
 		else {
-/*
-struct timespec t1,t2;
-clock_gettime(CLOCK_MONOTONIC,&t1);
-*/
-		  FILE *fp;
-		  if ( (fp=fopen("/home/wx/current_wx.html","w")) != NULL) {
-		    color_indexes.temp_out= (wx[cwx_idx].temp_out > wx[1-cwx_idx].temp_out) ? 2 : (wx[cwx_idx].temp_out < wx[1-cwx_idx].temp_out) ? 1 : 0;
-		    color_indexes.dewp_out= (wx[cwx_idx].dewp_out > wx[1-cwx_idx].dewp_out) ? 2 : (wx[cwx_idx].dewp_out < wx[1-cwx_idx].dewp_out) ? 1 : 0;
-		    color_indexes.rh_out= (wx[cwx_idx].rh_out > wx[1-cwx_idx].rh_out) ? 2 : (wx[cwx_idx].rh_out < wx[1-cwx_idx].rh_out) ? 1 : 0;
-		    int wdiff=wx[cwx_idx].wdir-wx[1-cwx_idx].wdir;
-		    if (abs(wdiff) < 180) {
-			color_indexes.wdir= (wdiff > 0) ? 2 : (wdiff < 0) ? 1 : 0;
-		    }
-		    else {
-			color_indexes.wdir= (wdiff < 0) ? 2 : 1;
-		    }
-		    color_indexes.wspd= (wx[cwx_idx].wspd > wx[1-cwx_idx].wspd) ? 2 : (wx[cwx_idx].wspd < wx[1-cwx_idx].wspd) ? 1 : 0;
-		    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
-		    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
-		    color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
-		    color_indexes.rain_day= (wx[cwx_idx].rain_total > wx[1-cwx_idx].rain_total) ? 2 : (wx[cwx_idx].rain_total < wx[1-cwx_idx].rain_total) ? 1 : 0;
-		    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"5\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
-		    fclose(fp);
-		    if ( (fp=fopen("/home/wx/current_wx.json","w")) != NULL) {
-			fprintf(fp,"{ \"curr_data\": { \"timestamp\": %d, \"date_time\": \"%04d-%02d-%02d %02d:%02d:%02d UTC\", \"curr_wdir\": [\"%s\", %d], \"old_wdir\": \"%s\", \"curr_wspd\": [\"%.1f\", %d], \"curr_wgust\": [\"%.1f\", %d], \"curr_temp\": [\"%.1f\", %d], \"curr_dewp\": [\"%.1f\", %d], \"curr_rh\": [\"%d\", %d], \"curr_press\": [\"%.2f\", %d], \"rain_1hr\": [\"%.2f\", %d], \"rain_day\": [\"%.2f\", %d] },\n\"extremes\": { \"hi_temp\": [\"%.1f\", \"%s\"], \"lo_temp\": [\"%.1f\", \"%s\"], \"max_wspd\": [\"%.1f\", \"%s\", \"%s\"], \"max_gust\": [\"%.1f\", \"%s\"], \"max_press\": [\"%.2f\", \"%s\"], \"min_press\": [\"%.2f\", \"%s\"], \"max_rh\": [\"%d\", \"%s\"], \"min_rh\": [\"%d\", \"%s\"] } }\n",upload_time,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],color_indexes.wdir,compass[wx[1-cwx_idx].wdir],wx[cwx_idx].wspd,color_indexes.wspd,wx[cwx_idx].wgust,color_indexes.wgust,wx[cwx_idx].temp_out,color_indexes.temp_out,wx[cwx_idx].dewp_out,color_indexes.dewp_out,wx[cwx_idx].rh_out,color_indexes.rh_out,wx[cwx_idx].barom,color_indexes.barom,wx[cwx_idx].rain_1hr,color_indexes.rain_1hr,computed_rain_day,color_indexes.rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,compass[extremes.wspd_max_wdir],extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time,extremes.rh_max,extremes.rh_max_time,extremes.rh_min,extremes.rh_min_time);
-			fclose(fp);
-		    }
-		    if (tid != 0xffffffff) {
-			pthread_join(tid,NULL);
-			tid=0xffffffff;
-		    }
-		    int status;
-		    if ( (status=pthread_create(&tid,NULL,thread_scp,NULL)) != 0) {
-			printf("thread creation error: %d\n",status);
-		    }
-		  }
+		  printf("WUupload (no wind) %d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+		}
+	    }
+	    else {
+		printf("***WUupload failed for %04d-%02d-%02d %02d:%02d:%02d with code %d ",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,ccode);
+//printf("%s\n",url_buffer);
+	    }
 /*
 clock_gettime(CLOCK_MONOTONIC,&t2);
 printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_nsec/1000000000.,t1.tv_sec,t1.tv_nsec,t2.tv_sec,t2.tv_nsec);
 */
-		}
-	    }
 	    wu_settings.last_upload_time=upload_time;
 	  }
+/*
+struct timespec t1,t2;
+clock_gettime(CLOCK_MONOTONIC,&t1);
+*/
+	  if (wxcloud_settings.do_upload == 1 && wxcloud_settings.wid != NULL && wxcloud_settings.key != NULL && (upload_time-wxcloud_settings.last_upload_time) > wxcloud_settings.upload_interval) {
+	    if (wx[cwx_idx].wspd >= 0.) {
+		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(mph_to_msec(wx[cwx_idx].wspd)*10.),wx[cwx_idx].wdir,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.));
+	    }
+	    else {
+		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.));
+	    }
+printf("**would upload to WxCloud %d %d %s %02d%02d %.1f %d %.1f %.1f %d %.2f\n",upload_time,wxcloud_settings.last_upload_time,url_buffer,tm_result->tm_hour,tm_result->tm_min,wx[cwx_idx].wspd,wx[cwx_idx].wdir,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom);
+	    curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+	    CURLcode ccode;
+	    if ( (ccode=curl_easy_perform(curl)) == 0) {
+		printf("WxCloud upload %s\n",url_buffer);
+	    }
+	    else {
+		printf("***WxCloud upload failed %s with code %d\n",url_buffer,ccode);
+	    }
+	    wxcloud_settings.last_upload_time=upload_time;
+	  }
+	  FILE *fp;
+	  if ( (fp=fopen("/home/wx/current_wx.html","w")) != NULL) {
+	    color_indexes.temp_out= (wx[cwx_idx].temp_out > wx[1-cwx_idx].temp_out) ? 2 : (wx[cwx_idx].temp_out < wx[1-cwx_idx].temp_out) ? 1 : 0;
+	    color_indexes.dewp_out= (wx[cwx_idx].dewp_out > wx[1-cwx_idx].dewp_out) ? 2 : (wx[cwx_idx].dewp_out < wx[1-cwx_idx].dewp_out) ? 1 : 0;
+	    color_indexes.rh_out= (wx[cwx_idx].rh_out > wx[1-cwx_idx].rh_out) ? 2 : (wx[cwx_idx].rh_out < wx[1-cwx_idx].rh_out) ? 1 : 0;
+	    int wdiff=wx[cwx_idx].wdir-wx[1-cwx_idx].wdir;
+	    if (abs(wdiff) < 180) {
+		color_indexes.wdir= (wdiff > 0) ? 2 : (wdiff < 0) ? 1 : 0;
+	    }
+	    else {
+		color_indexes.wdir= (wdiff < 0) ? 2 : 1;
+	    }
+	    color_indexes.wspd= (wx[cwx_idx].wspd > wx[1-cwx_idx].wspd) ? 2 : (wx[cwx_idx].wspd < wx[1-cwx_idx].wspd) ? 1 : 0;
+	    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
+	    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
+	    color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
+	    color_indexes.rain_day= (wx[cwx_idx].rain_total > wx[1-cwx_idx].rain_total) ? 2 : (wx[cwx_idx].rain_total < wx[1-cwx_idx].rain_total) ? 1 : 0;
+	    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"5\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
+	    fclose(fp);
+	    if ( (fp=fopen("/home/wx/current_wx.json","w")) != NULL) {
+		fprintf(fp,"{ \"curr_data\": { \"timestamp\": %d, \"date_time\": \"%04d-%02d-%02d %02d:%02d:%02d UTC\", \"curr_wdir\": [\"%s\", %d], \"old_wdir\": \"%s\", \"curr_wspd\": [\"%.1f\", %d], \"curr_wgust\": [\"%.1f\", %d], \"curr_temp\": [\"%.1f\", %d], \"curr_dewp\": [\"%.1f\", %d], \"curr_rh\": [\"%d\", %d], \"curr_press\": [\"%.2f\", %d], \"rain_1hr\": [\"%.2f\", %d], \"rain_day\": [\"%.2f\", %d] },\n\"extremes\": { \"hi_temp\": [\"%.1f\", \"%s\"], \"lo_temp\": [\"%.1f\", \"%s\"], \"max_wspd\": [\"%.1f\", \"%s\", \"%s\"], \"max_gust\": [\"%.1f\", \"%s\"], \"max_press\": [\"%.2f\", \"%s\"], \"min_press\": [\"%.2f\", \"%s\"], \"max_rh\": [\"%d\", \"%s\"], \"min_rh\": [\"%d\", \"%s\"] } }\n",upload_time,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],color_indexes.wdir,compass[wx[1-cwx_idx].wdir],wx[cwx_idx].wspd,color_indexes.wspd,wx[cwx_idx].wgust,color_indexes.wgust,wx[cwx_idx].temp_out,color_indexes.temp_out,wx[cwx_idx].dewp_out,color_indexes.dewp_out,wx[cwx_idx].rh_out,color_indexes.rh_out,wx[cwx_idx].barom,color_indexes.barom,wx[cwx_idx].rain_1hr,color_indexes.rain_1hr,computed_rain_day,color_indexes.rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,compass[extremes.wspd_max_wdir],extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time,extremes.rh_max,extremes.rh_max_time,extremes.rh_min,extremes.rh_min_time);
+		fclose(fp);
+	    }
+	    if (tid != 0xffffffff) {
+		pthread_join(tid,NULL);
+		tid=0xffffffff;
+	    }
+	    int status;
+	    if ( (status=pthread_create(&tid,NULL,thread_scp,NULL)) != 0) {
+		printf("thread creation error: %d\n",status);
+	    }
+	  }
+/*
+clock_gettime(CLOCK_MONOTONIC,&t2);
+printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_nsec/1000000000.,t1.tv_sec,t1.tv_nsec,t2.tv_sec,t2.tv_nsec);
+*/
 	}
 	request_weather_message(handle,0,latest_haddr);
 	first_sleep.tv_nsec=300000000;
@@ -1398,6 +1427,7 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
 	}
     }
     latest_haddr=history->latest_addr-18;
+// fill 5-minute data since beginning of "day", except for rain
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
     sprintf(ibuf,"select substring(from_unixtime(timestamp),12,2),substring(from_unixtime(timestamp),15,2) as minutes,i_temp_out/10.,rh,i_windspd/10.,i_windgust/10.,winddir,i_press/10. from wx.history where timestamp > %d having minutes in (01,06,11,16,21,26,31,36,41,46,51,56)",tstamp);
 printf("%s\n",ibuf);
@@ -1420,12 +1450,13 @@ printf("%s\n",ibuf);
 	}
 	mysql_free_result(result);
     }
-
+// get current-day (midnight-to-midnight) rain total
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
     char midnight[20];
     sprintf(midnight,"20%02d-%02d-%02d 00:00:00",time_now.tm_year-100,time_now.tm_mon+1,time_now.tm_mday);
     midnight[19]='\0';
-    sprintf(ibuf,"select sum(i_rain)/100. from wx.history where timestamp > %d and timestamp <= %d",timestamp(midnight),t);
+    int midnight_t=timestamp(midnight);
+    sprintf(ibuf,"select sum(i_rain)/100. from wx.history where timestamp > %d and timestamp <= %d",midnight_t,t);
 printf("query: %s\n",ibuf);
     mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
@@ -1437,6 +1468,32 @@ printf("query: %s\n",ibuf);
 	mysql_free_result(result);
     }
     printf("daily rain set to: %.2f\n",rain_day);
+// fill 5-minute rain data since beginning of "day", but with midnight reset
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    sprintf(ibuf,"select a.hours,a.minutes,a.rain_tot/100. from (select substring(from_unixtime(timestamp),12,2) as hours,substring(from_unixtime(timestamp),15,2) as minutes,i_rain,@rain_tot:=@rain_tot+i_rain as rain_tot from wx.history join (select @rain_tot:=0) as rt where timestamp > %d) as a where a.minutes in (1,6,11,16,21,26,31,36,41,46,51,56)",midnight_t-86400);
+    mysql_query(&mysql,ibuf);
+    result=mysql_use_result(&mysql);
+    if (result != NULL) {
+	int started=0;
+	MYSQL_ROW row;
+	while (row=mysql_fetch_row(result)) {
+	  int hour=atoi(row[0]);
+	  if (started == 0 && hour >= 18) {
+	    started=1;
+	  }
+	  if (started == 1) {
+	    if (hour < 18) {
+		hour+=24;
+	    }
+	    int data5min_index=(hour-18)*12+(atoi(row[1])/5);
+	    data5min_array[data5min_index].rain_day=atof(row[2]);
+	    if (data5min_index > 72) {
+		data5min_array[data5min_index].rain_day-=data5min_array[72].rain_day;
+	    }
+	  }
+	}
+	mysql_free_result(result);
+    }
     time_t t2=time(NULL);
     printf("%d records processed in %d seconds\n",num_recs,(t2-t1));
     close_mysql();
