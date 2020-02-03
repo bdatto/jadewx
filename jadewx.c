@@ -1021,8 +1021,8 @@ const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstati
 const char *WU_UPLOAD_URL_NO_WIND_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
 const char *WXCLOUD_UPLOAD_URL_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/wspd/%d/wdir/%d/temp/%d/dew/%d/hum/%d/bar/%d/rainrate/%d/rain/%d";
 const char *WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/temp/%d/dew/%d/hum/%d/bar/%d/rainrate/%d/rain/%d";
-const char *PWSWX_UPLOAD_URL_FORMAT="https://www.pwsweather.com/pwsupdate/pwsupdate.php?ID=%s&PASSWORD=%s&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&tempf=%1.f&rainin=%.2f&dailyrainin=%.2f&baromin=%.2f&dewptf=%.1f&humidity=%d&softwaretype=JadeWx&action=updateraw";
-const char *PWSWX_UPLOAD_URL_NO_WIND_FORMAT="https://www.pwsweather.com/pwsupdate/pwsupdate.php?ID=%s&PASSWORD=%s&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d&tempf=%1.f&rainin=%.2f&dailyrainin=%.2f&baromin=%.2f&dewptf=%.1f&humidity=%d&softwaretype=JadeWx&action=updateraw";
+const char *PWSWX_UPLOAD_URL_FORMAT="https://www.pwsweather.com/pwsupdate/pwsupdate.php?ID=%s&PASSWORD=%s&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&tempf=%.1f&rainin=%.2f&dailyrainin=%.2f&baromin=%.2f&dewptf=%.1f&humidity=%d&softwaretype=JadeWx&action=updateraw";
+const char *PWSWX_UPLOAD_URL_NO_WIND_FORMAT="https://www.pwsweather.com/pwsupdate/pwsupdate.php?ID=%s&PASSWORD=%s&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d&tempf=%.1f&rainin=%.2f&dailyrainin=%.2f&baromin=%.2f&dewptf=%.1f&humidity=%d&softwaretype=JadeWx&action=updateraw";
 void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfill_history)
 {
 //  printf("getframe: [%02x]",buffer[5]);
@@ -1122,7 +1122,6 @@ printf("**would upload to WxCloud %d %d %s %02d%02d %.1f %d %.1f %.1f %d %.2f %.
 	    wxcloud_settings.last_upload_time=upload_time;
 	  }
 	  if (pwswx_settings.upload_interval > 0 && pwswx_settings.station != NULL && pwswx_settings.password != NULL && (upload_time-pwswx_settings.last_upload_time) > pwswx_settings.upload_interval) {
-const char *PWSWX_UPLOAD_URL_FORMAT="https://www.pwsweather.com/pwsupdate/pwsupdate.php?ID=%s&PASSWORD=%s&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&tempf=%1.f&rainin=%.2f&dailyrainin=%.2f&baromin=%.2f&dewptf=%.1f&humidity=%d&softwaretype=JadeWx&action=updateraw";
 	    if (wx[cwx_idx].wspd >= 0.) {
 		sprintf(url_buffer,PWSWX_UPLOAD_URL_FORMAT,pwswx_settings.station,pwswx_settings.password,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].rain_1hr,computed_rain_day,wx[cwx_idx].barom,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out);
 	    }
