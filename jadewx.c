@@ -1129,7 +1129,14 @@ const char *PWSWX_UPLOAD_URL_FORMAT="https://www.pwsweather.com/pwsupdate/pwsupd
 	    else {
 		sprintf(url_buffer,PWSWX_UPLOAD_URL_NO_WIND_FORMAT,pwswx_settings.station,pwswx_settings.password,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,wx[cwx_idx].temp_out,wx[cwx_idx].rain_1hr,computed_rain_day,wx[cwx_idx].barom,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out);
 	    }
-	    printf("PWSWeather upload %s\n",url_buffer);
+	    curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+	    CURLcode ccode;
+	    if ( (ccode=curl_easy_perform(curl)) == 0) {
+		printf("PWSWeather upload succeeded: %s\n",url_buffer);
+	    }
+	    else {
+		printf("***PWSWeather upload failed %s with code %d\n",url_buffer,ccode);
+	    }
 	    pwswx_settings.last_upload_time=upload_time;
 	  }
 	  FILE *fp;
