@@ -613,7 +613,7 @@ void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather)
   }
   int idum=((buffer[172] >> 4) << 20) | ((buffer[172] & 0xf) << 16) | ((buffer[173] >> 4) << 12) | ((buffer[173] & 0xf) << 8) | ((buffer[174] >> 4) << 4) | (buffer[174] & 0xf);
   if (idum >= 0x470000) {
-    current_weather->wdir=-999;
+    current_weather->wdir=0;
     current_weather->wspd=-999.;
   }
   else {
@@ -718,8 +718,12 @@ int decode_history(unsigned char *buffer,History *history)
     int data5min_index=(hr-18)*12+(minute/5);
     if (data5min_index >= 0 && data5min_index < FIVE_MINUTE_DATA_SIZE) {
 	data5min_array[data5min_index].temp_out=history->temp_out;
-	data5min_array[data5min_index].wspd=history->wspd;
-	data5min_array[data5min_index].wgust=history->wgust;
+	if (history->wspd < 114.) {
+	  data5min_array[data5min_index].wspd=history->wspd;
+	}
+	if (history->wgust < 114.) {
+	  data5min_array[data5min_index].wgust=history->wgust;
+	}
 	data5min_array[data5min_index].barom=history->barom*0.02953;
 	data5min_array[data5min_index].rain_day=rain_day;
 	data5min_array[data5min_index].rh_out=history->rh_out;
