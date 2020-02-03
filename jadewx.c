@@ -1012,8 +1012,8 @@ struct {
 char *insert_buffer=NULL,*url_buffer=NULL;
 const char *WU_UPLOAD_URL_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&winddir=%d&windspeedmph=%.1f&windgustmph=%.1f&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
 const char *WU_UPLOAD_URL_NO_WIND_FORMAT="https://rtupdate.wunderground.com/weatherstation/updateweatherstation.php?ID=%s&PASSWORD=%s&action=updateraw&realtime=1&rtfreq=2.5&softwaretype=jadewx&humidity=%d&dewptf=%.1f&tempf=%.1f&baromin=%.2f&rainin=%.2f&dailyrainin=%.2f&dateutc=%04d-%02d-%02d+%02d%%3A%02d%%3A%02d";
-const char *WXCLOUD_UPLOAD_URL_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/wspd/%d/wdir/%d/temp/%d/dew/%d/hum/%d/bar/%d";
-const char *WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/temp/%d/dew/%d/hum/%d/bar/%d";
+const char *WXCLOUD_UPLOAD_URL_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/wspd/%d/wdir/%d/temp/%d/dew/%d/hum/%d/bar/%d/rainrate/%d/rain/%d";
+const char *WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT="http://api.weathercloud.net/v01/set/wid/%s/key/%s/ver/%s/type/%s/time/%02d%02d/temp/%d/dew/%d/hum/%d/bar/%d/rainrate/%d/rain/%d";
 void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfill_history)
 {
 //  printf("getframe: [%02x]",buffer[5]);
@@ -1096,12 +1096,12 @@ clock_gettime(CLOCK_MONOTONIC,&t1);
 */
 	  if (wxcloud_settings.do_upload == 1 && wxcloud_settings.wid != NULL && wxcloud_settings.key != NULL && (upload_time-wxcloud_settings.last_upload_time) > wxcloud_settings.upload_interval) {
 	    if (wx[cwx_idx].wspd >= 0.) {
-		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(mph_to_msec(wx[cwx_idx].wspd)*10.),wx[cwx_idx].wdir,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.));
+		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(mph_to_msec(wx[cwx_idx].wspd)*10.),wx[cwx_idx].wdir,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.),lroundf(inches_to_millimeters(wx[cwx_idx].rain_1hr)*10.),lroundf(inches_to_millimeters(computed_rain_day)*10.));
 	    }
 	    else {
-		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.));
+		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.),lroundf(inches_to_millimeters(wx[cwx_idx].rain_1hr)*10.),lroundf(inches_to_millimeters(computed_rain_day)*10.));
 	    }
-printf("**would upload to WxCloud %d %d %s %02d%02d %.1f %d %.1f %.1f %d %.2f\n",upload_time,wxcloud_settings.last_upload_time,url_buffer,tm_result->tm_hour,tm_result->tm_min,wx[cwx_idx].wspd,wx[cwx_idx].wdir,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom);
+printf("**would upload to WxCloud %d %d %s %02d%02d %.1f %d %.1f %.1f %d %.2f %.2f %.2f\n",upload_time,wxcloud_settings.last_upload_time,url_buffer,tm_result->tm_hour,tm_result->tm_min,wx[cwx_idx].wspd,wx[cwx_idx].wdir,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day);
 	    curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
 	    CURLcode ccode;
 	    if ( (ccode=curl_easy_perform(curl)) == 0) {
