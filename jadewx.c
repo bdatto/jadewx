@@ -1480,7 +1480,10 @@ printf("query: %s\n",ibuf);
     printf("daily rain set to: %.2f\n",rain_day);
 // fill 5-minute rain data since beginning of "day", but with midnight reset
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
-    sprintf(ibuf,"select a.hours,a.minutes,a.rain_tot/100. from (select substring(from_unixtime(timestamp),12,2) as hours,substring(from_unixtime(timestamp),15,2) as minutes,i_rain,@rain_tot:=@rain_tot+i_rain as rain_tot from wx.history join (select @rain_tot:=0) as rt where timestamp > %d) as a where a.minutes in (1,6,11,16,21,26,31,36,41,46,51,56)",midnight_t-86400);
+    if (time_now.tm_hour < 18) {
+	midnight_t-=86400;
+    }
+    sprintf(ibuf,"select a.hours,a.minutes,a.rain_tot/100. from (select substring(from_unixtime(timestamp),12,2) as hours,substring(from_unixtime(timestamp),15,2) as minutes,i_rain,@rain_tot:=@rain_tot+i_rain as rain_tot from wx.history join (select @rain_tot:=0) as rt where timestamp > %d) as a where a.minutes in (1,6,11,16,21,26,31,36,41,46,51,56)",midnight_t);
     mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
