@@ -1640,6 +1640,7 @@ void read_config()
 		  if (strlen(tvalue) > 0) {
 		    pwswx_settings.upload_interval=atoi(tvalue);
 		  }
+		}
 	    }
 	  }
 	}
