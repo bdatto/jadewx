@@ -1000,6 +1000,11 @@ float inHg_to_millibars(float inHg)
   return inHg*33.8639;
 }
 
+float inches_to_millimeters(float inches)
+{
+  return inches*25.4;
+}
+
 char *colors[3]={"black","dodgerblue","crimson"};
 struct {
   short temp_out,dewp_out,rh_out,wdir,wspd,wgust,barom,rain_1hr,rain_day;
