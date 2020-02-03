@@ -15,16 +15,22 @@ typedef struct {
 MySQL_Settings mysql_settings={.username=NULL,.password=NULL};
 typedef struct {
   char *station,*password;
-  int upload_interval,do_upload;
+  int upload_interval;
   time_t last_upload_time;
 } Wunderground_Settings;
-Wunderground_Settings wu_settings={.station=NULL,.password=NULL,.upload_interval=3,.do_upload=0,.last_upload_time=0};
+Wunderground_Settings wu_settings={.station=NULL,.password=NULL,.upload_interval=0,.last_upload_time=0};
 typedef struct {
   char *wid,*key,*ver,*type;
-  int upload_interval,do_upload;
+  int upload_interval;
   time_t last_upload_time;
 } Weathercloud_Settings;
-Weathercloud_Settings wxcloud_settings={.wid=NULL,.key=NULL,.ver=NULL,.type=NULL,.upload_interval=600,.do_upload=0,.last_upload_time=0};
+Weathercloud_Settings wxcloud_settings={.wid=NULL,.key=NULL,.ver=NULL,.type=NULL,.upload_interval=0,.last_upload_time=0};
+typedef struct {
+  char *station,*password;
+  int upload_interval;
+  time_t last_upload_time;
+} PWSWeather_Settings;
+PWSWeather_Settings pwswx_settings={.station=NULL,.password=NULL,.upload_interval=0,.last_upload_time=0};
 CURL *curl=NULL;
 int device_id;
 int comm_interval=10;
@@ -1059,7 +1065,7 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
 	  time_t upload_time=time(NULL);
 	  struct tm *tm_result;
 	  get_utc_date(upload_time,&tm_result);
-	  if (wu_settings.do_upload == 1 && wu_settings.station != NULL && wu_settings.password != NULL && (upload_time-wu_settings.last_upload_time) > wu_settings.upload_interval) {
+	  if (wu_settings.upload_interval > 0 && wu_settings.station != NULL && wu_settings.password != NULL && (upload_time-wu_settings.last_upload_time) > wu_settings.upload_interval) {
 /*
 struct timespec t1,t2;
 clock_gettime(CLOCK_MONOTONIC,&t1);
@@ -1094,7 +1100,7 @@ printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_ns
 struct timespec t1,t2;
 clock_gettime(CLOCK_MONOTONIC,&t1);
 */
-	  if (wxcloud_settings.do_upload == 1 && wxcloud_settings.wid != NULL && wxcloud_settings.key != NULL && (upload_time-wxcloud_settings.last_upload_time) > wxcloud_settings.upload_interval) {
+	  if (wxcloud_settings.upload_interval > 0 && wxcloud_settings.wid != NULL && wxcloud_settings.key != NULL && (upload_time-wxcloud_settings.last_upload_time) > wxcloud_settings.upload_interval) {
 	    if (wx[cwx_idx].wspd >= 0.) {
 		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(mph_to_msec(wx[cwx_idx].wspd)*10.),wx[cwx_idx].wdir,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.),lroundf(inches_to_millimeters(wx[cwx_idx].rain_1hr)*10.),lroundf(inches_to_millimeters(computed_rain_day)*10.));
 	    }
@@ -1580,11 +1586,19 @@ void read_config()
 		  wu_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wu_settings.password,tvalue);
 		}
+		else if (strcmp(section,"PWSWeather") == 0) {
+		  pwswx_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+		  strcpy(pwswx_settings.password,tvalue);
+		}
 	    }
 	    else if (strcmp(tname,"station") == 0) {
 		if (strcmp(section,"Wunderground") == 0) {
 		  wu_settings.station=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
 		  strcpy(wu_settings.station,tvalue);
+		}
+		else if (strcmp(section,"PWSWeather") == 0) {
+		  pwswx_settings.station=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+		  strcpy(pwswx_settings.station,tvalue);
 		}
 	    }
 	    else if (strcmp(tname,"wid") == 0) {
@@ -1612,23 +1626,20 @@ void read_config()
 		}
 	    }
 	    else if (strcmp(tname,"upload_interval") == 0) {
-		if (strcmp(section,"Weathercloud") == 0) {
+		if (strcmp(section,"Wunderground") == 0) {
+		  if (strlen(tvalue) > 0) {
+		    wu_settings.upload_interval=atoi(tvalue);
+		  }
+		}
+		else if (strcmp(section,"Weathercloud") == 0) {
 		  if (strlen(tvalue) > 0) {
 		    wxcloud_settings.upload_interval=atoi(tvalue);
 		  }
 		}
-	    }
-	    else if (strcmp(tname,"do_upload") == 0) {
-		if (strcmp(section,"Wunderground") == 0) {
-		  if (strcmp(tvalue,"true") == 0) {
-		    wu_settings.do_upload=1;
+		else if (strcmp(section,"PWSWeather") == 0) {
+		  if (strlen(tvalue) > 0) {
+		    pwswx_settings.upload_interval=atoi(tvalue);
 		  }
-		}
-		else if (strcmp(section,"Weathercloud") == 0) {
-		  if (strcmp(tvalue,"true") == 0) {
-		    wxcloud_settings.do_upload=1;
-		  }
-		}
 	    }
 	  }
 	}
