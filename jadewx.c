@@ -1171,7 +1171,7 @@ printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_ns
 	if (decode_history(&buffer[3],&history_queue[curr_hidx])) {
 	  print_history(&history_queue[curr_hidx]);
 	  if ( (buffer[5] & 0xf) != 0) {
-	    printf("***LOW BATTERY*** Console: %d  Temp/Hum: %d  Rain: %d  Wind: %d\n",( (buffer[5] & 0x8) == 0x8),( (buffer[5] & 0x4) == 0x4),( (buffer[5] & 0x2) == 0x2),( (buffer[5] & 0x1) == 0x1));
+	    printf("***LOW BATTERY*** Console: %d  Wind: %d  Rain: %d  Temp/Hum: %d\n",( (buffer[5] & 0x8) == 0x8),( (buffer[5] & 0x4) == 0x4),( (buffer[5] & 0x2) == 0x2),( (buffer[5] & 0x1) == 0x1));
 	  }
 	  if (!backfill_history) {
 	    if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
