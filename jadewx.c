@@ -1447,8 +1447,14 @@ printf("%s\n",ibuf);
 	  int data5min_index=(hour-18)*12+(atoi(row[1])/5);
 	  data5min_array[data5min_index].temp_out=atof(row[2]);
 	  data5min_array[data5min_index].rh_out=atoi(row[3]);
-	  data5min_array[data5min_index].wspd=atof(row[4]);
-	  data5min_array[data5min_index].wgust=atof(row[5]);
+	  float wspd=atof(row[4]);
+	  if (wspd < 114.) {
+	    data5min_array[data5min_index].wspd=wspd;
+	  }
+	  float wgust=atof(row[5]);
+	  if (wgust < 114.) {
+	    data5min_array[data5min_index].wgust=wgust;
+	  }
 	  data5min_array[data5min_index].wdir=atoi(row[6]);
 	  data5min_array[data5min_index].barom=atof(row[7])*0.02953;
 	}
