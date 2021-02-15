@@ -238,7 +238,7 @@ function get_data()
 {
   xhr=new XMLHttpRequest();
   xhr.onreadystatechange=update_data;
-  xhr.open("GET","/current_wx/current_wx.json");
+  xhr.open("GET","current_wx.json");
   xhr.send("");
 }
 
@@ -316,6 +316,15 @@ console.log("***NOT DONE ROTATING - jumping to "+current_dir_end);
 	var rain_rot=-126.+parseFloat(o.curr_data.rain_day[0])*180.;
 	document.getElementById("rain_needle").style.transform="rotate("+rain_rot+"deg)";
 	document.getElementById("rain_needle").style.zIndex=999;
+        var wc=document.getElementById("wind_chill");
+        if (o.curr_data.wind_chill[0] > -999.) {
+          wc.style.display='block';
+	  wc.innerHTML = "Wind Chill: " + o.curr_data.wind_chill[0] + "&deg; <small>F</small>";
+        }
+        else {
+          wc.style.display='none';
+          wc.innerHTML = "";
+        }
 	document.getElementById("hi_temp").innerHTML=o.extremes.hi_temp[0];
 	document.getElementById("hi_temp_time").innerHTML=o.extremes.hi_temp[1];
 	document.getElementById("lo_temp").innerHTML=o.extremes.lo_temp[0];
@@ -513,6 +522,9 @@ function rotate(id,from,to,rot)
 <td width="25%" align="center"><span id="curr_press" style="font-size: 28px"></span><br /><small>in Hg</small></td>
 <tr valign="bottom">
 <td colspan="2" align="center"><span style="font-size: 32px; padding-left: 10px"><span id="curr_dewp"></span>&deg;</span> <small>F</small>&nbsp;</td><td colspan="2" align="center"><span style="font-size: 28px"><span id="rain_1hr"></span></span> <small>in</small></td>
+</tr>
+<tr>
+<td colspan="4" align="center"><div id="wind_chill" style="display: none; margin-top: 15px">hello</div></td>
 </tr>
 </table>
 </div>
