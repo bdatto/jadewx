@@ -243,6 +243,7 @@ function get_data()
 }
 
 var last_timestamp=0;
+var old_wdir = "N";
 function update_data()
 {
   if (xhr.readyState == 4) {
@@ -262,11 +263,12 @@ console.log("***NOT DONE ROTATING - jumping to "+current_dir_end);
 	  document.getElementById("arrow").className="arrow N";
 	}
 	else {
-	  if (o.curr_data.old_wdir == "??" || document.getElementById("curr_wdir").innerHTML.length == 0) {
-	    o.curr_data.old_wdir="N";
+	  if (old_wdir == "??" || document.getElementById("curr_wdir").innerHTML.length == 0) {
+	    old_wdir="N";
 	  }
 //console.log("old: "+o.curr_data.old_wdir+" new: "+o.curr_data.curr_wdir[0]);
-	  rotate('arrow',o.curr_data.old_wdir,o.curr_data.curr_wdir[0],o.curr_data.curr_wdir[1]);
+	  rotate('arrow',old_wdir,o.curr_data.curr_wdir[0],o.curr_data.curr_wdir[1]);
+	  old_wdir = o.curr_data.curr_wdir[0];
 	}
 	document.getElementById("curr_wdir").innerHTML= (o.curr_data.curr_wdir[0].length == 0) ? "X" : o.curr_data.curr_wdir[0];
 	document.getElementById("curr_wdir").style.color=warm_cold_colors[o.curr_data.curr_wdir[1]];
@@ -432,7 +434,10 @@ function rotate(id,from,to,rot)
 }
 </script>
 </head>
+<!--
 <body style="font-family: arial,sans-serif; font-size: 16px" onload="setInterval('get_data()',5000); setInterval('refresh_webcam()',600000)">
+-->
+<body style="font-family: arial,sans-serif; font-size: 16px" onload="setInterval('get_data()',5000)">
 <div>
 <div class="panel" style="width: 485px; height: 500px">
 <h2 style="margin-top: 5px">Current Conditions:</h2>
@@ -770,9 +775,11 @@ function rotate(id,from,to,rot)
 </div>
 </div>
 <div style="clear: left"></div>
+<!--
 <div class="panel">
 <img id="webcam" src="/images/latest-image.jpg" />
 </div>
+-->
 </div>
 </body>
 </html>
