@@ -69,10 +69,10 @@ struct {
            };
 pthread_t tid=0xffffffff;
 
-int timestamp(char *datetime)
-{
+time_t timestamp(char *datetime) {
   struct tm tm;
-  strptime(datetime,"%Y-%m-%d %H:%M:%S",&tm);
+  strptime(datetime, "%Y-%m-%d %H:%M:%S", &tm);
+  tm.tm_isdst = 0;
   return mktime(&tm);
 }
 
@@ -292,7 +292,7 @@ void setRX(libusb_device_handle *handle)
     RX_buffer=(unsigned char *)malloc(RX_BUFFER_LENGTH*sizeof(unsigned char));
     RX_buffer[0]=0xd0;
     for (size_t n=1; n < RX_BUFFER_LENGTH; ++n) {
-	RX_buffer[n]=0x0;
+      RX_buffer[n]=0x0;
     }
   }
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d0,0,RX_buffer,21,1000);
@@ -386,7 +386,7 @@ void setTX(libusb_device_handle *handle)
     TX_buffer=(unsigned char *)malloc(TX_BUFFER_LENGTH*sizeof(unsigned char));
     TX_buffer[0]=0xd1;
     for (size_t n=1; n < TX_BUFFER_LENGTH; ++n) {
-	TX_buffer[n]=0x0;
+      TX_buffer[n]=0x0;
     }
   }
   int status=libusb_control_transfer(handle,0x21,0x9,0x3d1,0,TX_buffer,21,1000);
@@ -508,13 +508,13 @@ buffer[9]=(buffer[9] & 0xf);
   for (size_t n=0; n < CONFIG_BUFFER_LENGTH; ++n) {
     printf(" %02x",buffer[n]);
     if (n >= 7 && n < 47) {
-	ocs+=buffer[n];
+      ocs+=buffer[n];
     }
   }
   printf("\nold checksum: %x\n",ocs);
   if (!config_set) {
     if (config_buffer == NULL) {
-	config_buffer=(unsigned char *)malloc(CONFIG_BUFFER_LENGTH*sizeof(unsigned char));
+      config_buffer=(unsigned char *)malloc(CONFIG_BUFFER_LENGTH*sizeof(unsigned char));
     }
     memcpy(config_buffer,buffer,CONFIG_BUFFER_LENGTH);
     config_buffer[0]=0xd5;
@@ -532,7 +532,7 @@ buffer[9]=(buffer[9] & 0xf);
     config_buffer[46]=0x10;
     int cs=7;
     for (size_t n=7; n < 46; ++n) {
-	cs+=config_buffer[n];
+      cs+=config_buffer[n];
     }
     printf("new checksum: %x\n",cs);
     cfg_cs[0]=cs >> 8;
@@ -540,7 +540,7 @@ buffer[9]=(buffer[9] & 0xf);
     config_buffer[CONFIG_BUFFER_LENGTH-2]=cfg_cs[0];
     config_buffer[CONFIG_BUFFER_LENGTH-1]=cfg_cs[1];
     for (size_t n=0; n < CONFIG_BUFFER_LENGTH; ++n) {
-	printf(" %02x",config_buffer[n]);
+      printf(" %02x",config_buffer[n]);
     }
     printf("\n");
     request_set_config(handle,buffer,0);
@@ -609,8 +609,7 @@ typedef struct {
 CurrentWeather wx[2];
 int cwx_idx=0;
 
-void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather)
-{
+void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather) {
   current_weather->temp_out=(((buffer[42] & 0xf)*10000.+(buffer[43] >> 4)*1000.+(buffer[43] & 0xf)*100.+(buffer[44] >> 4)*10.+(buffer[44] & 0xf))/1000.-40.)*9./5.+32.;
   current_weather->dewp_out=(((buffer[78] & 0xf)*10000.+(buffer[79] >> 4)*1000.+(buffer[79] & 0xf)*100.+(buffer[80] >> 4)*10.+(buffer[80] & 0xf))/1000.-40.)*9./5.+32.;
   current_weather->rh_out=(buffer[106] >> 4)*10+(buffer[106] & 0xf);
@@ -646,8 +645,7 @@ void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather)
                                   + (0.6215 * current_weather->temp_out)
                                   - (35.75 * ws16)
                                   + (0.4275 * current_weather->temp_out * ws16);
-  }
-  else {
+  } else {
     current_weather->wind_chill=-999.;
   }
 }
@@ -676,20 +674,20 @@ void reset_for_new_day(int hour,int minute)
     extremes.temp_out_max=-999.9;
     extremes.temp_out_min=999.9;
     extremes.wspd_max=-999.9;
-    extremes.wspd_max_wdir=-999;
+    extremes.wspd_max_wdir=0;
     extremes.wgust_max=-999.9;
     extremes.barom_max=-9999.9;
     extremes.barom_min=9999.9;
     extremes.rh_max=-999;
     extremes.rh_min=999;
     for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	data5min_array[n].temp_out=-999.9;
-	data5min_array[n].wspd=-999.9;
-	data5min_array[n].wgust=-999.9;
-	data5min_array[n].barom=-999.9;
-	data5min_array[n].rain_day=-999.9;
-	data5min_array[n].rh_out=-999;
-	data5min_array[n].wdir=-999;
+      data5min_array[n].temp_out=-999.9;
+      data5min_array[n].wspd=-999.9;
+      data5min_array[n].wgust=-999.9;
+      data5min_array[n].barom=-999.9;
+      data5min_array[n].rain_day=-999.9;
+      data5min_array[n].rh_out=-999;
+      data5min_array[n].wdir=-999;
     }
   }
 }
@@ -730,149 +728,149 @@ int decode_history(unsigned char *buffer,History *history)
   if (history->latest_addr == history->this_addr && (minute % 5) == 1) {
     int hr=hour;
     if (hr < 18) {
-	hr+=24;
+      hr+=24;
     }
     int data5min_index=(hr-18)*12+(minute/5);
     if (data5min_index >= 0 && data5min_index < FIVE_MINUTE_DATA_SIZE) {
-	data5min_array[data5min_index].temp_out=history->temp_out;
-	if (history->wspd < 114.) {
-	  data5min_array[data5min_index].wspd=history->wspd;
-	}
-	if (history->wgust < 114.) {
-	  data5min_array[data5min_index].wgust=history->wgust;
-	}
-	data5min_array[data5min_index].barom=history->barom*0.02953;
-	data5min_array[data5min_index].rain_day=rain_day;
-	data5min_array[data5min_index].rh_out=history->rh_out;
-	data5min_array[data5min_index].wdir=history->wdir;
-	FILE *fp;
-	if ( (fp=fopen("/home/wx/www/data5min.json","w")) != NULL) {
-	  fprintf(fp,"{ \"temps\": [");
-	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	    if (n > 0) {
-		fprintf(fp,", ");
-	    }
-	    if (data5min_array[n].temp_out > -999.) {
-		fprintf(fp,"%5.1f",data5min_array[n].temp_out);
-	    }
-	    else {
-		fprintf(fp,"  NaN");
-	    }
-	  }
-	  fprintf(fp,"], \"wspds\": [");
-	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	    if (n > 0) {
-		fprintf(fp,", ");
-	    }
-	    if (data5min_array[n].wspd > -999.) {
-		fprintf(fp,"%4.1f",data5min_array[n].wspd);
-	    }
-	    else {
-		fprintf(fp," NaN");
-	    }
-	  }
-	  fprintf(fp,"], \"wgusts\": [");
-	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	    if (n > 0) {
-		fprintf(fp,", ");
-	    }
-	    if (data5min_array[n].wgust > -999.) {
-		fprintf(fp,"%4.1f",data5min_array[n].wgust);
-	    }
-	    else {
-		fprintf(fp," NaN");
-	    }
-	  }
-	  fprintf(fp,"], \"wdirs\": [");
-	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	    if (n > 0) {
-		fprintf(fp,", ");
-	    }
-	    if (data5min_array[n].wdir > -999) {
-		fprintf(fp,"%3d",data5min_array[n].wdir);
-	    }
-	    else {
-		fprintf(fp,"NaN");
-	    }
-	  }
-	  fprintf(fp,"], \"rhs\": [");
-	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	    if (n > 0) {
-		fprintf(fp,", ");
-	    }
-	    if (data5min_array[n].rh_out > -999) {
-		fprintf(fp,"%3d",data5min_array[n].rh_out);
-	    }
-	    else {
-		fprintf(fp,"NaN");
-	    }
-	  }
-	  fprintf(fp,"], \"pressures\": [");
-	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	    if (n > 0) {
-		fprintf(fp,", ");
-	    }
-	    if (data5min_array[n].barom > -999.) {
-		fprintf(fp,"%6.2f",data5min_array[n].barom);
-	    }
-	    else {
-		fprintf(fp,"   NaN");
-	    }
-	  }
-	  fprintf(fp,"], \"rain_days\": [");
-	  for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
-	    if (n > 0) {
-		fprintf(fp,", ");
-	    }
-	    if (data5min_array[n].rain_day > -999.) {
-		fprintf(fp,"%5.2f",data5min_array[n].rain_day);
-	    }
-	    else {
-		fprintf(fp,"  NaN");
-	    }
-	  }
-	  fprintf(fp,"]");
-	  fprintf(fp," }\n");
-	  fclose(fp);
-	}
+      data5min_array[data5min_index].temp_out=history->temp_out;
+      if (history->wspd < 114.) {
+        data5min_array[data5min_index].wspd=history->wspd;
+      }
+      if (history->wgust < 114.) {
+        data5min_array[data5min_index].wgust=history->wgust;
+      }
+      data5min_array[data5min_index].barom=history->barom*0.02953;
+      data5min_array[data5min_index].rain_day=rain_day;
+      data5min_array[data5min_index].rh_out=history->rh_out;
+      data5min_array[data5min_index].wdir=history->wdir;
+      FILE *fp;
+      if ( (fp=fopen("/home/wx/www/data5min.json","w")) != NULL) {
+        fprintf(fp,"{ \"temps\": [");
+        for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+          if (n > 0) {
+            fprintf(fp,", ");
+          }
+          if (data5min_array[n].temp_out > -999.) {
+            fprintf(fp,"%5.1f",data5min_array[n].temp_out);
+          }
+          else {
+            fprintf(fp,"  NaN");
+          }
+        }
+        fprintf(fp,"], \"wspds\": [");
+        for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+          if (n > 0) {
+            fprintf(fp,", ");
+          }
+          if (data5min_array[n].wspd > -999.) {
+            fprintf(fp,"%4.1f",data5min_array[n].wspd);
+          }
+          else {
+            fprintf(fp," NaN");
+          }
+        }
+        fprintf(fp,"], \"wgusts\": [");
+        for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+          if (n > 0) {
+            fprintf(fp,", ");
+          }
+          if (data5min_array[n].wgust > -999.) {
+            fprintf(fp,"%4.1f",data5min_array[n].wgust);
+          }
+          else {
+            fprintf(fp," NaN");
+          }
+        }
+        fprintf(fp,"], \"wdirs\": [");
+        for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+          if (n > 0) {
+            fprintf(fp,", ");
+          }
+          if (data5min_array[n].wdir > -999) {
+            fprintf(fp,"%3d",data5min_array[n].wdir);
+          }
+          else {
+            fprintf(fp,"NaN");
+          }
+        }
+        fprintf(fp,"], \"rhs\": [");
+        for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+          if (n > 0) {
+            fprintf(fp,", ");
+          }
+          if (data5min_array[n].rh_out > -999) {
+            fprintf(fp,"%3d",data5min_array[n].rh_out);
+          }
+          else {
+            fprintf(fp,"NaN");
+          }
+        }
+        fprintf(fp,"], \"pressures\": [");
+        for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+          if (n > 0) {
+            fprintf(fp,", ");
+          }
+          if (data5min_array[n].barom > -999.) {
+            fprintf(fp,"%6.2f",data5min_array[n].barom);
+          }
+          else {
+            fprintf(fp,"   NaN");
+          }
+        }
+        fprintf(fp,"], \"rain_days\": [");
+        for (size_t n=0; n < FIVE_MINUTE_DATA_SIZE; ++n) {
+          if (n > 0) {
+            fprintf(fp,", ");
+          }
+          if (data5min_array[n].rain_day > -999.) {
+            fprintf(fp,"%5.2f",data5min_array[n].rain_day);
+          }
+          else {
+            fprintf(fp,"  NaN");
+          }
+        }
+        fprintf(fp,"]");
+        fprintf(fp," }\n");
+        fclose(fp);
+      }
     }
     else {
-	printf("***FiveMinuteData index out of range: %d %d %d %d\n",hour,hr,minute,data5min_index);
+      printf("***FiveMinuteData index out of range: %d %d %d %d\n",hour,hr,minute,data5min_index);
     }
   }
   if (history->this_addr <= history->latest_addr) {
     if (history->temp_out > extremes.temp_out_max) {
-	extremes.temp_out_max=history->temp_out;
-	strncpy(extremes.temp_out_max_time,&history->datetime[11],5);
+      extremes.temp_out_max=history->temp_out;
+      strncpy(extremes.temp_out_max_time,&history->datetime[11],5);
     }
     if (history->temp_out < extremes.temp_out_min) {
-	extremes.temp_out_min=history->temp_out;
-	strncpy(extremes.temp_out_min_time,&history->datetime[11],5);
+      extremes.temp_out_min=history->temp_out;
+      strncpy(extremes.temp_out_min_time,&history->datetime[11],5);
     }
     if (history->wspd < 114. && history->wspd > extremes.wspd_max) {
-	extremes.wspd_max=history->wspd;
-	extremes.wspd_max_wdir=history->wdir;
-	strncpy(extremes.wspd_max_time,&history->datetime[11],5);
+      extremes.wspd_max=history->wspd;
+      extremes.wspd_max_wdir=history->wdir;
+      strncpy(extremes.wspd_max_time,&history->datetime[11],5);
     }
     if (history->wgust < 114. && history->wgust > extremes.wgust_max) {
-	extremes.wgust_max=history->wgust;
-	strncpy(extremes.wgust_max_time,&history->datetime[11],5);
+      extremes.wgust_max=history->wgust;
+      strncpy(extremes.wgust_max_time,&history->datetime[11],5);
     }
     if (history->barom > extremes.barom_max) {
-	extremes.barom_max=history->barom;
-	strncpy(extremes.barom_max_time,&history->datetime[11],5);
+      extremes.barom_max=history->barom;
+      strncpy(extremes.barom_max_time,&history->datetime[11],5);
     }
     if (history->barom < extremes.barom_min) {
-	extremes.barom_min=history->barom;
-	strncpy(extremes.barom_min_time,&history->datetime[11],5);
+      extremes.barom_min=history->barom;
+      strncpy(extremes.barom_min_time,&history->datetime[11],5);
     }
     if (history->rh_out > extremes.rh_max) {
-	extremes.rh_max=history->rh_out;
-	strncpy(extremes.rh_max_time,&history->datetime[11],5);
+      extremes.rh_max=history->rh_out;
+      strncpy(extremes.rh_max_time,&history->datetime[11],5);
     }
     if (history->rh_out < extremes.rh_min) {
-	extremes.rh_min=history->rh_out;
-	strncpy(extremes.rh_min_time,&history->datetime[11],5);
+      extremes.rh_min=history->rh_out;
+      strncpy(extremes.rh_min_time,&history->datetime[11],5);
     }
   }
   return 1;
@@ -892,15 +890,15 @@ void store_history_records()
   if (mysql_settings.username != NULL && mysql_settings.password != NULL) {
     open_mysql();
     if (store_buffer == NULL) {
-	store_buffer=(char *)malloc(256*sizeof(char));
+      store_buffer=(char *)malloc(256*sizeof(char));
     }
     for (size_t n=0; n < HISTORY_SIZE; ++n) {
-	for (size_t m=0; m < 256; ++m) {
-	  store_buffer[m]=0;
-	}
-	sprintf(store_buffer,HISTORY_INSERT,timestamp(history_queue[n].datetime),lround(history_queue[n].barom*10.),lround(history_queue[n].temp_out*10.),history_queue[n].rh_out,history_queue[n].wdir,lround(history_queue[n].wspd*10.),lround(history_queue[n].wgust*10.),lround(history_queue[n].rain_raw*100.),history_queue[n].this_addr);
-	mysql_query(&mysql,store_buffer);
-	printf("stored '%s'\n",store_buffer);
+      for (size_t m=0; m < 256; ++m) {
+        store_buffer[m]=0;
+      }
+      sprintf(store_buffer,HISTORY_INSERT,timestamp(history_queue[n].datetime),lround(history_queue[n].barom*10.),lround(history_queue[n].temp_out*10.),history_queue[n].rh_out,history_queue[n].wdir,lround(history_queue[n].wspd*10.),lround(history_queue[n].wgust*10.),lround(history_queue[n].rain_raw*100.),history_queue[n].this_addr);
+      mysql_query(&mysql,store_buffer);
+      printf("stored '%s'\n",store_buffer);
     }
     close_mysql();
   }
@@ -942,12 +940,12 @@ void get_utc_date(time_t epoch,struct tm **tm_result)
     (*tm_result)->tm_hour-=24;
     ++(*tm_result)->tm_mday;
     if ( (*tm_result)->tm_mday > mdays[(*tm_result)->tm_mon]) {
-	++(*tm_result)->tm_mon;
-	(*tm_result)->tm_mday=1;
-	if ( (*tm_result)->tm_mon > 12) {
-	  ++(*tm_result)->tm_year;
-	  (*tm_result)->tm_mon=1;
-	}
+      ++(*tm_result)->tm_mon;
+      (*tm_result)->tm_mday=1;
+      if ( (*tm_result)->tm_mon > 12) {
+        ++(*tm_result)->tm_year;
+        (*tm_result)->tm_mon=1;
+      }
     }
   }
 }
@@ -981,16 +979,16 @@ void wait_for_message(libusb_device_handle *handle)
   nanosleep(&first_sleep,NULL);
   while (1) {
     if (get_state(handle) == 0x16) {
-	break;
+      break;
     }
     nanosleep(&next_sleep,NULL);
     time_t t2=time(NULL);
     if ( (t2-t1) > 30) {
-	struct tm *tm_t=localtime(&t2);
-	printf("***LOSTSYNC?*** 20%2d-%02d-%02d %02d:%02d\n",tm_t->tm_year-100,tm_t->tm_mon+1,tm_t->tm_mday,tm_t->tm_hour,tm_t->tm_min);
-	request_weather_message(handle,0,latest_haddr);
-	setTX(handle);
-	t1=t2;
+      struct tm *tm_t=localtime(&t2);
+      printf("***LOSTSYNC?*** 20%2d-%02d-%02d %02d:%02d\n",tm_t->tm_year-100,tm_t->tm_mon+1,tm_t->tm_mday,tm_t->tm_hour,tm_t->tm_min);
+      request_weather_message(handle,0,latest_haddr);
+      setTX(handle);
+      t1=t2;
     }
   }
 }
@@ -1047,265 +1045,259 @@ void handle_frame(libusb_device_handle *handle,unsigned char *buffer,int backfil
   switch (buffer[5] >> 4) {
     case 0x2:
     {
-	printf("***DATAWRITTEN***\n");
-	setRX(handle);
-	break;
+      printf("***DATAWRITTEN***\n");
+      setRX(handle);
+      break;
     }
     case 0x4:
     {
-	store_config(handle,buffer);
-	break;
+      store_config(handle,buffer);
+      break;
     }
     case 0x6:
     {
-	if (!backfill_history) {
-	  cwx_idx=1-cwx_idx;
-	  decode_current_wx(&buffer[3],&wx[cwx_idx]);
-	  float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
+      if (!backfill_history) {
+        cwx_idx=1-cwx_idx;
+        decode_current_wx(&buffer[3],&wx[cwx_idx]);
+        float computed_rain_day=rain_day+wx[cwx_idx].rain_total-rain_total_base;
 //printf("rain report: %f %f %f %f\n",computed_rain_day,rain_day,wx[cwx_idx].rain_total,rain_total_base);
-	  if (url_buffer == NULL) {
-	    url_buffer=(char *)malloc(4096*sizeof(char));
-	  }
-//	  printf("pressure: %.2fin\n",wx[cwx_idx].barom);
-//	  printf("outside temp: %.1fF\n",wx[cwx_idx].temp_out);
-//	  printf("outside dew point: %.1fF\n",wx[cwx_idx].dewp_out);
-//	  printf("outside RH: %d%%\n",wx[cwx_idx].rh_out);
-//	  printf("wind direction: %ddeg\n",wx[cwx_idx].wdir);
-//	  printf("wind speed: %.1fmph\n",wx[cwx_idx].wspd);
-//	  printf("wind gust: %.1fmph\n",wx[cwx_idx].wgust);
-//	  printf("1-hour rain: %.2fin\n",wx[cwx_idx].rain_1hr);
-//	  printf("total rain: %.2fin\n",wx[cwx_idx].rain_total);
-	  time_t upload_time=time(NULL);
-	  struct tm *tm_result;
-	  get_utc_date(upload_time,&tm_result);
-	  if (wu_settings.upload_interval > 0 && wu_settings.station != NULL && wu_settings.password != NULL && (upload_time-wu_settings.last_upload_time) > wu_settings.upload_interval) {
+        if (url_buffer == NULL) {
+          url_buffer=(char *)malloc(4096*sizeof(char));
+        }
+//        printf("pressure: %.2fin\n",wx[cwx_idx].barom);
+//        printf("outside temp: %.1fF\n",wx[cwx_idx].temp_out);
+//        printf("outside dew point: %.1fF\n",wx[cwx_idx].dewp_out);
+//        printf("outside RH: %d%%\n",wx[cwx_idx].rh_out);
+//        printf("wind direction: %ddeg\n",wx[cwx_idx].wdir);
+//        printf("wind speed: %.1fmph\n",wx[cwx_idx].wspd);
+//        printf("wind gust: %.1fmph\n",wx[cwx_idx].wgust);
+//        printf("1-hour rain: %.2fin\n",wx[cwx_idx].rain_1hr);
+//        printf("total rain: %.2fin\n",wx[cwx_idx].rain_total);
+        time_t upload_time=time(NULL);
+        struct tm *tm_result;
+        get_utc_date(upload_time,&tm_result);
+        if (wu_settings.upload_interval > 0 && wu_settings.station != NULL && wu_settings.password != NULL && (upload_time-wu_settings.last_upload_time) > wu_settings.upload_interval) {
 /*
 struct timespec t1,t2;
 clock_gettime(CLOCK_MONOTONIC,&t1);
 */
-	    if (wx[cwx_idx].wspd >= 0.) {
-		sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-	    }
-	    else {
-		sprintf(url_buffer,WU_UPLOAD_URL_NO_WIND_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-	    }
-	    curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
-	    CURLcode ccode;
-	    if ( (ccode=curl_easy_perform(curl)) == 0) {
-		if (wx[cwx_idx].wspd >= 0.) {
-		  printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		}
-		else {
-		  printf("WUupload (no wind) %d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
-		}
-	    }
-	    else {
-		printf("***WUupload failed for %04d-%02d-%02d %02d:%02d:%02d with code %d ",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,ccode);
+          if (wx[cwx_idx].wspd >= 0.) {
+            sprintf(url_buffer,WU_UPLOAD_URL_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+          } else {
+            sprintf(url_buffer,WU_UPLOAD_URL_NO_WIND_FORMAT,wu_settings.station,wu_settings.password,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+          }
+          curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+          CURLcode ccode;
+          if ( (ccode=curl_easy_perform(curl)) == 0) {
+            if (wx[cwx_idx].wspd >= 0.) {
+              printf("WUupload %d,%.1f,%.1f,%d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+            } else {
+              printf("WUupload (no wind) %d,%.1f,%.1f,%.2f,%.2f,%.2f,%04d-%02d-%02d %02d:%02d:%02d ",wx[cwx_idx].rh_out,wx[cwx_idx].dewp_out,wx[cwx_idx].temp_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec);
+            }
+          } else {
+            printf("***WUupload failed for %04d-%02d-%02d %02d:%02d:%02d with code %d ",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,ccode);
 //printf("%s\n",url_buffer);
-	    }
+          }
 /*
 clock_gettime(CLOCK_MONOTONIC,&t2);
 printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_nsec/1000000000.,t1.tv_sec,t1.tv_nsec,t2.tv_sec,t2.tv_nsec);
 */
-	    wu_settings.last_upload_time=upload_time;
-	  }
+          wu_settings.last_upload_time=upload_time;
+        }
 /*
 struct timespec t1,t2;
 clock_gettime(CLOCK_MONOTONIC,&t1);
 */
-	  if (wxcloud_settings.upload_interval > 0 && wxcloud_settings.wid != NULL && wxcloud_settings.key != NULL && (upload_time-wxcloud_settings.last_upload_time) > wxcloud_settings.upload_interval) {
-	    if (wx[cwx_idx].wspd >= 0.) {
-		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(mph_to_msec(wx[cwx_idx].wspd)*10.),wx[cwx_idx].wdir,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.),lroundf(inches_to_millimeters(wx[cwx_idx].rain_1hr)*10.),lroundf(inches_to_millimeters(computed_rain_day)*10.));
-	    }
-	    else {
-		sprintf(url_buffer,WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.),lroundf(inches_to_millimeters(wx[cwx_idx].rain_1hr)*10.),lroundf(inches_to_millimeters(computed_rain_day)*10.));
-	    }
+        if (wxcloud_settings.upload_interval > 0 && wxcloud_settings.wid != NULL && wxcloud_settings.key != NULL && (upload_time-wxcloud_settings.last_upload_time) > wxcloud_settings.upload_interval) {
+          if (wx[cwx_idx].wspd >= 0.) {
+            sprintf(url_buffer,WXCLOUD_UPLOAD_URL_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(mph_to_msec(wx[cwx_idx].wspd)*10.),wx[cwx_idx].wdir,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.),lroundf(inches_to_millimeters(wx[cwx_idx].rain_1hr)*10.),lroundf(inches_to_millimeters(computed_rain_day)*10.));
+          } else {
+            sprintf(url_buffer,WXCLOUD_UPLOAD_URL_NO_WIND_FORMAT,wxcloud_settings.wid,wxcloud_settings.key,wxcloud_settings.ver,wxcloud_settings.type,tm_result->tm_hour,tm_result->tm_min,lroundf(degF_to_degC(wx[cwx_idx].temp_out)*10.),lroundf(degF_to_degC(wx[cwx_idx].dewp_out)*10.),wx[cwx_idx].rh_out,lroundf(inHg_to_millibars(wx[cwx_idx].barom)*10.),lroundf(inches_to_millimeters(wx[cwx_idx].rain_1hr)*10.),lroundf(inches_to_millimeters(computed_rain_day)*10.));
+          }
 printf("**would upload to WxCloud %d %d %s %02d%02d %.1f %d %.1f %.1f %d %.2f %.2f %.2f\n",upload_time,wxcloud_settings.last_upload_time,url_buffer,tm_result->tm_hour,tm_result->tm_min,wx[cwx_idx].wspd,wx[cwx_idx].wdir,wx[cwx_idx].temp_out,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out,wx[cwx_idx].barom,wx[cwx_idx].rain_1hr,computed_rain_day);
-	    curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
-	    CURLcode ccode;
-	    if ( (ccode=curl_easy_perform(curl)) == 0) {
-		printf("WxCloud upload %s\n",url_buffer);
-	    }
-	    else {
-		printf("***WxCloud upload failed %s with code %d\n",url_buffer,ccode);
-	    }
-	    wxcloud_settings.last_upload_time=upload_time;
-	  }
-	  if (pwswx_settings.upload_interval > 0 && pwswx_settings.station != NULL && pwswx_settings.password != NULL && (upload_time-pwswx_settings.last_upload_time) > pwswx_settings.upload_interval) {
-	    if (wx[cwx_idx].wspd >= 0.) {
-		sprintf(url_buffer,PWSWX_UPLOAD_URL_FORMAT,pwswx_settings.station,pwswx_settings.password,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].rain_1hr,computed_rain_day,wx[cwx_idx].barom,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out);
-	    }
-	    else {
-		sprintf(url_buffer,PWSWX_UPLOAD_URL_NO_WIND_FORMAT,pwswx_settings.station,pwswx_settings.password,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,wx[cwx_idx].temp_out,wx[cwx_idx].rain_1hr,computed_rain_day,wx[cwx_idx].barom,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out);
-	    }
-	    curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
-	    CURLcode ccode;
-	    if ( (ccode=curl_easy_perform(curl)) == 0) {
-		printf("PWSWeather upload succeeded: %s\n",url_buffer);
-	    }
-	    else {
-		printf("***PWSWeather upload failed %s with code %d\n",url_buffer,ccode);
-	    }
-	    pwswx_settings.last_upload_time=upload_time;
-	  }
-	  FILE *fp;
-	  if ( (fp=fopen("/home/wx/current_wx.html","w")) != NULL) {
-	    color_indexes.temp_out= (wx[cwx_idx].temp_out > wx[1-cwx_idx].temp_out) ? 2 : (wx[cwx_idx].temp_out < wx[1-cwx_idx].temp_out) ? 1 : 0;
-	    color_indexes.dewp_out= (wx[cwx_idx].dewp_out > wx[1-cwx_idx].dewp_out) ? 2 : (wx[cwx_idx].dewp_out < wx[1-cwx_idx].dewp_out) ? 1 : 0;
-	    color_indexes.rh_out= (wx[cwx_idx].rh_out > wx[1-cwx_idx].rh_out) ? 2 : (wx[cwx_idx].rh_out < wx[1-cwx_idx].rh_out) ? 1 : 0;
-	    int wdiff=wx[cwx_idx].wdir-wx[1-cwx_idx].wdir;
-	    if (abs(wdiff) < 180) {
-		color_indexes.wdir= (wdiff > 0) ? 2 : (wdiff < 0) ? 1 : 0;
-	    }
-	    else {
-		color_indexes.wdir= (wdiff < 0) ? 2 : 1;
-	    }
-	    color_indexes.wspd= (wx[cwx_idx].wspd > wx[1-cwx_idx].wspd) ? 2 : (wx[cwx_idx].wspd < wx[1-cwx_idx].wspd) ? 1 : 0;
-	    color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
-	    color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
-	    color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
-	    color_indexes.rain_day= (wx[cwx_idx].rain_total > wx[1-cwx_idx].rain_total) ? 2 : (wx[cwx_idx].rain_total < wx[1-cwx_idx].rain_total) ? 1 : 0;
-	    fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"5\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
-	    fclose(fp);
-	    if ( (fp=fopen("/home/wx/current_wx.json","w")) != NULL) {
-		fprintf(fp,"{ \"curr_data\": { \"timestamp\": %d, \"date_time\": \"%04d-%02d-%02d %02d:%02d:%02d UTC\", \"curr_wdir\": [\"%s\", %d], \"old_wdir\": \"%s\", \"curr_wspd\": [\"%.1f\", %d], \"curr_wgust\": [\"%.1f\", %d], \"curr_temp\": [\"%.1f\", %d], \"curr_dewp\": [\"%.1f\", %d], \"curr_rh\": [\"%d\", %d], \"curr_press\": [\"%.2f\", %d], \"rain_1hr\": [\"%.2f\", %d], \"rain_day\": [\"%.2f\", %d], \"wind_chill\": [\"%.1f\", 0] },\n\"extremes\": { \"hi_temp\": [\"%.1f\", \"%s\"], \"lo_temp\": [\"%.1f\", \"%s\"], \"max_wspd\": [\"%.1f\", \"%s\", \"%s\"], \"max_gust\": [\"%.1f\", \"%s\"], \"max_press\": [\"%.2f\", \"%s\"], \"min_press\": [\"%.2f\", \"%s\"], \"max_rh\": [\"%d\", \"%s\"], \"min_rh\": [\"%d\", \"%s\"] } }\n",upload_time,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,compass[wx[cwx_idx].wdir],color_indexes.wdir,compass[wx[1-cwx_idx].wdir],wx[cwx_idx].wspd,color_indexes.wspd,wx[cwx_idx].wgust,color_indexes.wgust,wx[cwx_idx].temp_out,color_indexes.temp_out,wx[cwx_idx].dewp_out,color_indexes.dewp_out,wx[cwx_idx].rh_out,color_indexes.rh_out,wx[cwx_idx].barom,color_indexes.barom,wx[cwx_idx].rain_1hr,color_indexes.rain_1hr,computed_rain_day,color_indexes.rain_day,wx[cwx_idx].wind_chill,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,compass[extremes.wspd_max_wdir],extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time,extremes.rh_max,extremes.rh_max_time,extremes.rh_min,extremes.rh_min_time);
-		fclose(fp);
-	    }
-	    if (tid != 0xffffffff) {
-		pthread_join(tid,NULL);
-		tid=0xffffffff;
-	    }
-	    int status;
-	    if ( (status=pthread_create(&tid,NULL,thread_scp,NULL)) != 0) {
-		printf("thread creation error: %d\n",status);
-	    }
-	  }
+          curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+          CURLcode ccode;
+          if ( (ccode=curl_easy_perform(curl)) == 0) {
+            printf("WxCloud upload %s\n",url_buffer);
+          } else {
+            printf("***WxCloud upload failed %s with code %d\n",url_buffer,ccode);
+          }
+          wxcloud_settings.last_upload_time=upload_time;
+        }
+        if (pwswx_settings.upload_interval > 0 && pwswx_settings.station != NULL && pwswx_settings.password != NULL && (upload_time-pwswx_settings.last_upload_time) > pwswx_settings.upload_interval) {
+          if (wx[cwx_idx].wspd >= 0.) {
+            sprintf(url_buffer,PWSWX_UPLOAD_URL_FORMAT,pwswx_settings.station,pwswx_settings.password,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,wx[cwx_idx].wdir,wx[cwx_idx].wspd,wx[cwx_idx].wgust,wx[cwx_idx].temp_out,wx[cwx_idx].rain_1hr,computed_rain_day,wx[cwx_idx].barom,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out);
+          } else {
+            sprintf(url_buffer,PWSWX_UPLOAD_URL_NO_WIND_FORMAT,pwswx_settings.station,pwswx_settings.password,tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,wx[cwx_idx].temp_out,wx[cwx_idx].rain_1hr,computed_rain_day,wx[cwx_idx].barom,wx[cwx_idx].dewp_out,wx[cwx_idx].rh_out);
+          }
+          curl_easy_setopt(curl,CURLOPT_URL,url_buffer);
+          CURLcode ccode;
+          if ( (ccode=curl_easy_perform(curl)) == 0) {
+            printf("PWSWeather upload succeeded: %s\n",url_buffer);
+          } else {
+            printf("***PWSWeather upload failed %s with code %d\n",url_buffer,ccode);
+          }
+          pwswx_settings.last_upload_time=upload_time;
+        }
+        FILE *fp;
+        if ( (fp = fopen("/home/wx/current_wx.html", "w")) != NULL) {
+          color_indexes.temp_out= (wx[cwx_idx].temp_out > wx[1-cwx_idx].temp_out) ? 2 : (wx[cwx_idx].temp_out < wx[1-cwx_idx].temp_out) ? 1 : 0;
+          color_indexes.dewp_out= (wx[cwx_idx].dewp_out > wx[1-cwx_idx].dewp_out) ? 2 : (wx[cwx_idx].dewp_out < wx[1-cwx_idx].dewp_out) ? 1 : 0;
+          color_indexes.rh_out= (wx[cwx_idx].rh_out > wx[1-cwx_idx].rh_out) ? 2 : (wx[cwx_idx].rh_out < wx[1-cwx_idx].rh_out) ? 1 : 0;
+          int wdiff=wx[cwx_idx].wdir-wx[1-cwx_idx].wdir;
+          if (abs(wdiff) < 180) {
+            color_indexes.wdir= (wdiff > 0) ? 2 : (wdiff < 0) ? 1 : 0;
+          } else {
+            color_indexes.wdir= (wdiff < 0) ? 2 : 1;
+          }
+          color_indexes.wspd= (wx[cwx_idx].wspd > wx[1-cwx_idx].wspd) ? 2 : (wx[cwx_idx].wspd < wx[1-cwx_idx].wspd) ? 1 : 0;
+          color_indexes.wgust= (wx[cwx_idx].wgust > wx[1-cwx_idx].wgust) ? 2 : (wx[cwx_idx].wgust < wx[1-cwx_idx].wgust) ? 1 : 0;
+          color_indexes.barom= (wx[cwx_idx].barom > wx[1-cwx_idx].barom) ? 2 : (wx[cwx_idx].barom < wx[1-cwx_idx].barom) ? 1 : 0;
+          color_indexes.rain_1hr= (wx[cwx_idx].rain_1hr > wx[1-cwx_idx].rain_1hr) ? 2 : (wx[cwx_idx].rain_1hr < wx[1-cwx_idx].rain_1hr) ? 1 : 0;
+          color_indexes.rain_day= (wx[cwx_idx].rain_total > wx[1-cwx_idx].rain_total) ? 2 : (wx[cwx_idx].rain_total < wx[1-cwx_idx].rain_total) ? 1 : 0;
+          fprintf(fp,"<html><head><meta http-equiv=\"refresh\" content=\"5\"></head><body style=\"font-family: arial,sans-serif\"><h2>Current Weather:</h2><ul><strong>Time:</strong> %04d-%02d-%02d %02d:%02d:%02d UTC<br /><strong>Wind:</strong><ul><span style=\"color: %s\">%s</span> at <span style=\"color: %s\">%.1f</span> mph<br />Gusts to <span style=\"color: %s\">%.1f</span> mph</ul><strong>Temperature:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Dewpoint:</strong> <span style=\"color: %s\">%.1f</span>&deg;F<br /><strong>Relative humidity:</strong> <span style=\"color: %s\">%d</span>%<br /><strong>Barometer:</strong> <span style=\"color: %s\">%.2f</span> in Hg<br /><strong>Rain:</strong><ul><strong>1-hour:</strong> <span style=\"color: %s\">%.2f</span> in<br /><strong>Today:</strong> %.2f in</ul></ul><h2>Extremes:</h2><ul><strong>Hi temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Lo temperature:</strong> %.1f&deg;F (%s LST)<br /><strong>Max wind speed:</strong> %.1f mph (%s LST)<br /><strong>Peak wind gust:</strong> %.1f mph (%s LST)<br /><strong>Highest pressure:</strong> %.2f in Hg (%s LST)<br /><strong>Lowest pressure:</strong> %.2f in Hg (%s LST)</ul></body></html>",tm_result->tm_year,tm_result->tm_mon,tm_result->tm_mday,tm_result->tm_hour,tm_result->tm_min,tm_result->tm_sec,colors[color_indexes.wdir],compass[wx[cwx_idx].wdir],colors[color_indexes.wspd],wx[cwx_idx].wspd,colors[color_indexes.wgust],wx[cwx_idx].wgust,colors[color_indexes.temp_out],wx[cwx_idx].temp_out,colors[color_indexes.dewp_out],wx[cwx_idx].dewp_out,colors[color_indexes.rh_out],wx[cwx_idx].rh_out,colors[color_indexes.barom],wx[cwx_idx].barom,colors[color_indexes.rain_1hr],wx[cwx_idx].rain_1hr,computed_rain_day,extremes.temp_out_max,extremes.temp_out_max_time,extremes.temp_out_min,extremes.temp_out_min_time,extremes.wspd_max,extremes.wspd_max_time,extremes.wgust_max,extremes.wgust_max_time,extremes.barom_max*0.02953,extremes.barom_max_time,extremes.barom_min*0.02953,extremes.barom_min_time);
+          fclose(fp);
+          if ( (fp=fopen("/home/wx/current_wx.json","w")) != NULL) {
+            fprintf(fp,"{ \"curr_data\": { \"timestamp\": %d, \"date_time\": \"%04d-%02d-%02d %02d:%02d:%02d UTC\", \"curr_wdir\": [\"%s\", %d], \"old_wdir\": \"%s\", \"curr_wspd\": [\"%.1f\", %d], \"curr_wgust\": [\"%.1f\", %d], \"curr_temp\": [\"%.1f\", %d], \"curr_dewp\": [\"%.1f\", %d], \"curr_rh\": [\"%d\", %d], \"curr_press\": [\"%.2f\", %d], \"rain_1hr\": [\"%.2f\", %d], \"rain_day\": [\"%.2f\", %d], \"wind_chill\": [\"%.1f\", 0] },\n\"extremes\": { \"hi_temp\": [\"%.1f\", \"%s\"], \"lo_temp\": [\"%.1f\", \"%s\"], \"max_wspd\": [\"%.1f\", \"%s\", \"%s\"], \"max_gust\": [\"%.1f\", \"%s\"], \"max_press\": [\"%.2f\", \"%s\"], \"min_press\": [\"%.2f\", \"%s\"], \"max_rh\": [\"%d\", \"%s\"], \"min_rh\": [\"%d\", \"%s\"] } }\n", upload_time, tm_result->tm_year, tm_result->tm_mon, tm_result->tm_mday, tm_result->tm_hour, tm_result->tm_min, tm_result->tm_sec, compass[wx[cwx_idx].wdir], color_indexes.wdir, compass[wx[1-cwx_idx].wdir], wx[cwx_idx].wspd, color_indexes.wspd, wx[cwx_idx].wgust, color_indexes.wgust, wx[cwx_idx].temp_out, color_indexes.temp_out, wx[cwx_idx].dewp_out, color_indexes.dewp_out, wx[cwx_idx].rh_out, color_indexes.rh_out, wx[cwx_idx].barom, color_indexes.barom, wx[cwx_idx].rain_1hr, color_indexes.rain_1hr, computed_rain_day, color_indexes.rain_day, wx[cwx_idx].wind_chill, extremes.temp_out_max, extremes.temp_out_max_time, extremes.temp_out_min, extremes.temp_out_min_time, extremes.wspd_max, compass[extremes.wspd_max_wdir], extremes.wspd_max_time, extremes.wgust_max, extremes.wgust_max_time, extremes.barom_max*0.02953, extremes.barom_max_time, extremes.barom_min*0.02953, extremes.barom_min_time, extremes.rh_max, extremes.rh_max_time, extremes.rh_min, extremes.rh_min_time);
+            fclose(fp);
+          }
+          if (tid != 0xffffffff) {
+            pthread_join(tid, NULL);
+            tid=0xffffffff;
+          }
+          int status;
+/*
+          if ( (status=pthread_create(&tid,NULL,thread_scp,NULL)) != 0) {
+            printf("thread creation error: %d\n",status);
+          }
+*/
+        }
 /*
 clock_gettime(CLOCK_MONOTONIC,&t2);
 printf("%f %f %d %d %d %d\n",t1.tv_sec+t1.tv_nsec/1000000000.,t2.tv_sec+t2.tv_nsec/1000000000.,t1.tv_sec,t1.tv_nsec,t2.tv_sec,t2.tv_nsec);
 */
-	}
-	request_weather_message(handle,0,latest_haddr);
-	first_sleep.tv_nsec=300000000;
-	next_sleep.tv_nsec=10000000;
-	break;
+      }
+      request_weather_message(handle,0,latest_haddr);
+      first_sleep.tv_nsec=300000000;
+      next_sleep.tv_nsec=10000000;
+      break;
     }
     case 0x8:
     {
-	if (!backfill_history) {
-	  if (curr_hidx == HISTORY_SIZE) {
-	    store_history_records();
-	    curr_hidx=0;
-	  }
-	}
-	if (decode_history(&buffer[3],&history_queue[curr_hidx])) {
-	  print_history(&history_queue[curr_hidx]);
-	  if ( (buffer[5] & 0xf) != 0) {
-	    printf("***LOW BATTERY*** Console: %d  Wind: %d  Rain: %d  Temp/Hum: %d\n",( (buffer[5] & 0x8) == 0x8),( (buffer[5] & 0x4) == 0x4),( (buffer[5] & 0x2) == 0x2),( (buffer[5] & 0x1) == 0x1));
-	  }
-	  if (!backfill_history) {
-	    if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
-		if (history_queue[curr_hidx].this_addr != history_queue[last_hidx].this_addr) {
-		  if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
+      if (!backfill_history) {
+        if (curr_hidx == HISTORY_SIZE) {
+          store_history_records();
+          curr_hidx=0;
+        }
+      }
+      if (decode_history(&buffer[3],&history_queue[curr_hidx])) {
+        print_history(&history_queue[curr_hidx]);
+        if ( (buffer[5] & 0xf) != 0) {
+          printf("***LOW BATTERY*** Console: %d  Wind: %d  Rain: %d  Temp/Hum: %d\n",( (buffer[5] & 0x8) == 0x8),( (buffer[5] & 0x4) == 0x4),( (buffer[5] & 0x2) == 0x2),( (buffer[5] & 0x1) == 0x1));
+        }
+        if (!backfill_history) {
+          if ( (history_queue[curr_hidx].latest_addr-history_queue[curr_hidx].this_addr) >= 0) {
+            if (history_queue[curr_hidx].this_addr != history_queue[last_hidx].this_addr) {
+              if (history_queue[curr_hidx].day_num != history_queue[last_hidx].day_num) {
 // if the day has changed, reset the daily rainfall to zero
-		    rain_day=0.;
+                rain_day=0.;
 // reset total rain base to the current total rain (eliminates -0 that happens
 //   for computed rain after nightly reset)
-		    rain_total_base=wx[cwx_idx].rain_total;
-		  }
-		  else {
+                rain_total_base=wx[cwx_idx].rain_total;
+              }
+              else {
 // otherwise, increment the daily rainfall by the rain amount in the last
 //  history period
-		    rain_day+=history_queue[curr_hidx].rain_raw;
-		  }
-		  rain_total_base+=history_queue[curr_hidx].rain_raw;
-		  last_hidx=curr_hidx;
-		}
-		else {
-		  curr_hidx=last_hidx;
-		}
-		latest_haddr=history_queue[curr_hidx].this_addr;
-		++curr_hidx;
-	    }
-	    if (!config_requested) {
-		request_get_config(handle,buffer);
-	    }
+                rain_day+=history_queue[curr_hidx].rain_raw;
+              }
+              rain_total_base+=history_queue[curr_hidx].rain_raw;
+              last_hidx=curr_hidx;
+            }
+            else {
+              curr_hidx=last_hidx;
+            }
+            latest_haddr=history_queue[curr_hidx].this_addr;
+            ++curr_hidx;
+          }
+          if (!config_requested) {
+            request_get_config(handle,buffer);
+          }
 else if (!config_set) {
 printf("request config?\n");
 request_set_config(handle,buffer,0);
 }
-	    else {
-		sleep(2);
-		request_weather_message(handle,5,0xfffff);
-	    }
-	    first_sleep.tv_nsec=300000000;
-	    next_sleep.tv_nsec=10000000;
-	    break;
-	  }
-	  else {
-	    if (insert_buffer == NULL) {
-		insert_buffer=(char *)malloc(256*sizeof(char));
-	    }
-	    for (size_t n=0; n < 256; ++n) {
-		insert_buffer[n]=0;
-	    }
-	    sprintf(insert_buffer,HISTORY_INSERT,timestamp(history_queue[curr_hidx].datetime),lround(history_queue[curr_hidx].barom*10.),lround(history_queue[curr_hidx].temp_out*10.),history_queue[curr_hidx].rh_out,history_queue[curr_hidx].wdir,lround(history_queue[curr_hidx].wspd*10.),lround(history_queue[curr_hidx].wgust*10.),lround(history_queue[curr_hidx].rain_raw*100.),history_queue[curr_hidx].this_addr);
-	    mysql_query(&mysql,insert_buffer);
-	    latest_haddr=history_queue[curr_hidx].this_addr;
-	  }
-	}
+          else {
+            sleep(2);
+            request_weather_message(handle,5,0xfffff);
+          }
+          first_sleep.tv_nsec=300000000;
+          next_sleep.tv_nsec=10000000;
+          break;
+        }
+        else {
+          if (insert_buffer == NULL) {
+            insert_buffer=(char *)malloc(256*sizeof(char));
+          }
+          for (size_t n=0; n < 256; ++n) {
+            insert_buffer[n]=0;
+          }
+          sprintf(insert_buffer,HISTORY_INSERT, timestamp(history_queue[curr_hidx].datetime), lround(history_queue[curr_hidx].barom*10.),lround(history_queue[curr_hidx].temp_out*10.),history_queue[curr_hidx].rh_out,history_queue[curr_hidx].wdir,lround(history_queue[curr_hidx].wspd*10.),lround(history_queue[curr_hidx].wgust*10.),lround(history_queue[curr_hidx].rain_raw*100.),history_queue[curr_hidx].this_addr);
+          mysql_query(&mysql,insert_buffer);
+          latest_haddr=history_queue[curr_hidx].this_addr;
+        }
+      }
     }
     case 0xa:
     {
-	switch (buffer[5] & 0xf) {
-	  case 0x1:
-	  {
+      switch (buffer[5] & 0xf) {
+        case 0x1:
+        {
 /*
 // first config
-	buffer[0]=0xd5;
-	buffer[1]=0x0;
-	buffer[2]=0x9;
-	buffer[3]=0xf0;
-	buffer[4]=0xf0;
+      buffer[0]=0xd5;
+      buffer[1]=0x0;
+      buffer[2]=0x9;
+      buffer[3]=0xf0;
+      buffer[4]=0xf0;
 // ask for a config message
-	buffer[5]=0x3;
-//	buffer[6]=data_buffer[7];
-//	buffer[7]=data_buffer[8];
+      buffer[5]=0x3;
+//      buffer[6]=data_buffer[7];
+//      buffer[7]=data_buffer[8];
 buffer[6]=0x0;
 buffer[7]=0x1b;
-	buffer[8]=(comm_interval >> 4) & 0xff;
-	int history_addr=0xffffff;
-	buffer[9]=(history_addr >> 16) & 0x0f | 16*(comm_interval & 0xf);
-	buffer[10]=(history_addr >> 8) & 0xff;
-	buffer[11]=(history_addr >> 0) & 0xff;
-	status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,data_buffer,273,1000);
+      buffer[8]=(comm_interval >> 4) & 0xff;
+      int history_addr=0xffffff;
+      buffer[9]=(history_addr >> 16) & 0x0f | 16*(comm_interval & 0xf);
+      buffer[10]=(history_addr >> 8) & 0xff;
+      buffer[11]=(history_addr >> 0) & 0xff;
+      status=libusb_control_transfer(handle,0x21,0x9,0x3d5,0,data_buffer,273,1000);
 printf("first config status %d\n",status);
 */
-	    first_sleep.tv_nsec=85000000;
-	    next_sleep.tv_nsec=5000000;
-	    break;
-	  }
-	  case 0x2:
-	  {
-	    set_config(handle);
-	    break;
-	  }
-	  case 0x3:
-	  {
-	    printf("***CLOCKMESSAGE***\n");
-	    set_time(handle,buffer);
-	    break;
-	  }
-	}
-	break;
+          first_sleep.tv_nsec=85000000;
+          next_sleep.tv_nsec=5000000;
+          break;
+        }
+        case 0x2:
+        {
+          set_config(handle);
+          break;
+        }
+        case 0x3:
+        {
+          printf("***CLOCKMESSAGE***\n");
+          set_time(handle,buffer);
+          break;
+        }
+      }
+      break;
     }
     default:
     {
-	printf("***unhandled message type");
-	for (size_t n=0; n < 7; ++n) {
-	  printf(" %02x",buffer[n]);
-	}
-	printf("\n");
+      printf("***unhandled message type");
+      for (size_t n=0; n < 7; ++n) {
+        printf(" %02x",buffer[n]);
+      }
+      printf("\n");
     }
   }
 }
@@ -1315,21 +1307,20 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
   if (mysql_settings.username != NULL && mysql_settings.password != NULL) {
     open_mysql();
     time_t t1=time(NULL);
-    const char *HISTORY_INSERT="insert into wx.history values(%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update haddr = values(haddr)";
     const size_t IBUF_LEN=32768;
     char *ibuf=(char *)malloc(IBUF_LEN*sizeof(char));
     unsigned char *data_buffer=(unsigned char *)malloc(273*sizeof(unsigned char));
     int status=mysql_query(&mysql,"select haddr from wx.history where timestamp in (select max(timestamp) from wx.history)");
     MYSQL_RES *result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	while (row=mysql_fetch_row(result)) {
-	  latest_haddr=atoi(row[0]);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      while (row=mysql_fetch_row(result)) {
+        latest_haddr=atoi(row[0]);
+      }
+      mysql_free_result(result);
     }
     else {
-	latest_haddr=0xfffff;
+      latest_haddr=0xfffff;
     }
     printf("last history address in the database: %d\n",latest_haddr);
 
@@ -1338,13 +1329,13 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     localtime_r(&t,&time_now);
     char datetime[20];
     if (time_now.tm_hour >= 18) {
-	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",time_now.tm_year-100,time_now.tm_mon+1,time_now.tm_mday);
+      sprintf(datetime,"20%02d-%02d-%02d 18:00:00",time_now.tm_year-100,time_now.tm_mon+1,time_now.tm_mday);
     }
     else {
-	time_t ty=t-86400;
-	struct tm yesterday;
-	localtime_r(&ty,&yesterday);
-	sprintf(datetime,"20%02d-%02d-%02d 18:00:00",yesterday.tm_year-100,yesterday.tm_mon+1,yesterday.tm_mday);
+      time_t ty=t-86400;
+      struct tm yesterday;
+      localtime_r(&ty,&yesterday);
+      sprintf(datetime,"20%02d-%02d-%02d 18:00:00",yesterday.tm_year-100,yesterday.tm_mon+1,yesterday.tm_mday);
     }
     datetime[19]='\0';
     int tstamp=timestamp(datetime);
@@ -1354,12 +1345,12 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.temp_out_max=atof(row[0])/10.;
-	  strncpy(extremes.temp_out_max_time,&row[1][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.temp_out_max=atof(row[0])/10.;
+        strncpy(extremes.temp_out_max_time,&row[1][11],5);
+      }
+      mysql_free_result(result);
     }
 // fill minimum temperature for current 24-hour period
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
@@ -1367,12 +1358,12 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.temp_out_min=atof(row[0])/10.;
-	  strncpy(extremes.temp_out_min_time,&row[1][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.temp_out_min=atof(row[0])/10.;
+        strncpy(extremes.temp_out_min_time,&row[1][11],5);
+      }
+      mysql_free_result(result);
     }
 // fill maximum wind speed for current 24-hour period
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
@@ -1380,13 +1371,13 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.wspd_max=atof(row[0])/10.;
-	  extremes.wspd_max_wdir=atoi(row[1]);
-	  strncpy(extremes.wspd_max_time,&row[2][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.wspd_max=atof(row[0])/10.;
+        extremes.wspd_max_wdir=atoi(row[1]);
+        strncpy(extremes.wspd_max_time,&row[2][11],5);
+      }
+      mysql_free_result(result);
     }
 // fill maximum wind gust for current 24-hour period
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
@@ -1394,12 +1385,12 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.wgust_max=atof(row[0])/10.;
-	  strncpy(extremes.wgust_max_time,&row[1][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.wgust_max=atof(row[0])/10.;
+        strncpy(extremes.wgust_max_time,&row[1][11],5);
+      }
+      mysql_free_result(result);
     }
 // fill maximum barometer for current 24-hour period
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
@@ -1407,12 +1398,12 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.barom_max=atof(row[0])/10.;
-	  strncpy(extremes.barom_max_time,&row[1][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.barom_max=atof(row[0])/10.;
+        strncpy(extremes.barom_max_time,&row[1][11],5);
+      }
+      mysql_free_result(result);
     }
 // fill minimum barometer for current 24-hour period
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
@@ -1420,12 +1411,12 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.barom_min=atof(row[0])/10.;
-	  strncpy(extremes.barom_min_time,&row[1][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.barom_min=atof(row[0])/10.;
+        strncpy(extremes.barom_min_time,&row[1][11],5);
+      }
+      mysql_free_result(result);
     }
 // fill maximum rh for current 24-hour period
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
@@ -1433,12 +1424,12 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.rh_max=atoi(row[0]);
-	  strncpy(extremes.rh_max_time,&row[1][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.rh_max=atoi(row[0]);
+        strncpy(extremes.rh_max_time,&row[1][11],5);
+      }
+      mysql_free_result(result);
     }
 // fill minimum rh for current 24-hour period
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
@@ -1446,30 +1437,30 @@ void backfill_history_records(libusb_device_handle *handle,History *history)
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	if ( (row=mysql_fetch_row(result)) != NULL) {
-	  extremes.rh_min=atoi(row[0]);
-	  strncpy(extremes.rh_min_time,&row[1][11],5);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      if ( (row=mysql_fetch_row(result)) != NULL) {
+        extremes.rh_min=atoi(row[0]);
+        strncpy(extremes.rh_min_time,&row[1][11],5);
+      }
+      mysql_free_result(result);
     }
     size_t num_recs=0;
     history->this_addr=latest_haddr-18;
     history->latest_addr=latest_haddr;
     while (1) {
-	wait_for_message(handle);
-	int status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
-	handle_frame(handle,data_buffer,1);
-	if ( (data_buffer[5] >> 4) == 0x8) {
-	  ++num_recs;
-	}
-	if (history->this_addr != history->latest_addr) {
-	  request_weather_message(handle,0,latest_haddr);
-	}
-	setTX(handle);
-	if (history->this_addr == history->latest_addr) {
-	  break;
-	}
+      wait_for_message(handle);
+      int status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
+      handle_frame(handle,data_buffer,1);
+      if ( (data_buffer[5] >> 4) == 0x8) {
+        ++num_recs;
+      }
+      if (history->this_addr != history->latest_addr) {
+        request_weather_message(handle,0,latest_haddr);
+      }
+      setTX(handle);
+      if (history->this_addr == history->latest_addr) {
+        break;
+      }
     }
     latest_haddr=history->latest_addr-18;
 // fill 5-minute data since beginning of "day", except for rain
@@ -1479,30 +1470,30 @@ printf("%s\n",ibuf);
     status=mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	while (row=mysql_fetch_row(result)) {
-	  int hour=atoi(row[0]);
-	  if (hour < 18) {
-	    hour+=24;
-	  }
-	  int data5min_index=(hour-18)*12+(atoi(row[1])/5);
-	  data5min_array[data5min_index].temp_out=atof(row[2]);
-	  data5min_array[data5min_index].rh_out=atoi(row[3]);
-	  float wspd=atof(row[4]);
-	  if (wspd < 114.) {
-	    data5min_array[data5min_index].wspd=wspd;
-	  }
-	  float wgust=atof(row[5]);
-	  if (wgust < 114.) {
-	    data5min_array[data5min_index].wgust=wgust;
-	  }
-	  data5min_array[data5min_index].wdir=atoi(row[6]);
-	  data5min_array[data5min_index].barom=atof(row[7])*0.02953;
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      while (row=mysql_fetch_row(result)) {
+        int hour=atoi(row[0]);
+        if (hour < 18) {
+          hour+=24;
+        }
+        int data5min_index=(hour-18)*12+(atoi(row[1])/5);
+        data5min_array[data5min_index].temp_out=atof(row[2]);
+        data5min_array[data5min_index].rh_out=atoi(row[3]);
+        float wspd=atof(row[4]);
+        if (wspd < 114.) {
+          data5min_array[data5min_index].wspd=wspd;
+        }
+        float wgust=atof(row[5]);
+        if (wgust < 114.) {
+          data5min_array[data5min_index].wgust=wgust;
+        }
+        data5min_array[data5min_index].wdir=atoi(row[6]);
+        data5min_array[data5min_index].barom=atof(row[7])*0.02953;
+      }
+      mysql_free_result(result);
     }
 // get current-day (midnight-to-midnight) rain total
-    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
+    for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0) { }
     char midnight[20];
     sprintf(midnight,"20%02d-%02d-%02d 00:00:00",time_now.tm_year-100,time_now.tm_mon+1,time_now.tm_mday);
     midnight[19]='\0';
@@ -1512,41 +1503,41 @@ printf("query: %s\n",ibuf);
     mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	MYSQL_ROW row;
-	while (row=mysql_fetch_row(result)) {
-	  rain_day=atof(row[0]);
-	}
-	mysql_free_result(result);
+      MYSQL_ROW row;
+      while (row=mysql_fetch_row(result)) {
+        rain_day=atof(row[0]);
+      }
+      mysql_free_result(result);
     }
     printf("daily rain set to: %.2f\n",rain_day);
 // fill 5-minute rain data since beginning of "day", but with midnight reset
     for (size_t n=0; n < IBUF_LEN; ibuf[n++]=0);
     if (time_now.tm_hour < 18) {
-	midnight_t-=86400;
+      midnight_t-=86400;
     }
     sprintf(ibuf,"select a.hours,a.minutes,a.rain_tot/100. from (select substring(from_unixtime(timestamp),12,2) as hours,substring(from_unixtime(timestamp),15,2) as minutes,i_rain,@rain_tot:=@rain_tot+i_rain as rain_tot from wx.history join (select @rain_tot:=0) as rt where timestamp > %d) as a where a.minutes in (1,6,11,16,21,26,31,36,41,46,51,56)",midnight_t);
     mysql_query(&mysql,ibuf);
     result=mysql_use_result(&mysql);
     if (result != NULL) {
-	int started=0;
-	MYSQL_ROW row;
-	while (row=mysql_fetch_row(result)) {
-	  int hour=atoi(row[0]);
-	  if (started == 0 && hour >= 18) {
-	    started=1;
-	  }
-	  if (started == 1) {
-	    if (hour < 18) {
-		hour+=24;
-	    }
-	    int data5min_index=(hour-18)*12+(atoi(row[1])/5);
-	    data5min_array[data5min_index].rain_day=atof(row[2]);
-	    if (data5min_index > 72) {
-		data5min_array[data5min_index].rain_day-=data5min_array[72].rain_day;
-	    }
-	  }
-	}
-	mysql_free_result(result);
+      int started=0;
+      MYSQL_ROW row;
+      while (row=mysql_fetch_row(result)) {
+        int hour=atoi(row[0]);
+        if (started == 0 && hour >= 18) {
+          started=1;
+        }
+        if (started == 1) {
+          if (hour < 18) {
+            hour+=24;
+          }
+          int data5min_index=(hour-18)*12+(atoi(row[1])/5);
+          data5min_array[data5min_index].rain_day=atof(row[2]);
+          if (data5min_index > 72) {
+            data5min_array[data5min_index].rain_day-=data5min_array[72].rain_day;
+          }
+        }
+      }
+      mysql_free_result(result);
     }
     time_t t2=time(NULL);
     printf("%d records processed in %d seconds\n",num_recs,(t2-t1));
@@ -1583,97 +1574,97 @@ void read_config()
     char *tline=trim(line);
     size_t tlen=strlen(tline);
     if (tlen > 0 && tline[0] != '#') {
-	char section[LINE_LENGTH];
-	if (tline[0] == '[' && tline[tlen-1] == ']') {
-	  strncpy(&section[0],&tline[1],tlen-2);
-	  section[tlen-2]='\0';
-	}
-	else {
-	  size_t n=0;
-	  while (tline[n] != '=' && n < tlen) {
-	    ++n;
-	  }
-	  if (n != tlen) {
-	    char name[LINE_LENGTH],value[LINE_LENGTH];
-	    strncpy(&name[0],&tline[0],n);
-	    name[n]='\0';
-	    char *tname=trim(name);
-	    strncpy(&value[0],&tline[n+1],tlen-n);
-	    value[tlen-n]='\0';
-	    char *tvalue=trim(value);
-	    if (strcmp(tname,"username") == 0) {
-		if (strcmp(section,"mysql") == 0) {
-		  mysql_settings.username=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(mysql_settings.username,tvalue);
-		}
-	    }
-	    else if (strcmp(tname,"password") == 0) {
-		if (strcmp(section,"mysql") == 0) {
-		  mysql_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(mysql_settings.password,tvalue);
-		}
-		else if (strcmp(section,"Wunderground") == 0) {
-		  wu_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(wu_settings.password,tvalue);
-		}
-		else if (strcmp(section,"PWSWeather") == 0) {
-		  pwswx_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(pwswx_settings.password,tvalue);
-		}
-	    }
-	    else if (strcmp(tname,"station") == 0) {
-		if (strcmp(section,"Wunderground") == 0) {
-		  wu_settings.station=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(wu_settings.station,tvalue);
-		}
-		else if (strcmp(section,"PWSWeather") == 0) {
-		  pwswx_settings.station=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(pwswx_settings.station,tvalue);
-		}
-	    }
-	    else if (strcmp(tname,"wid") == 0) {
-		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.wid=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(wxcloud_settings.wid,tvalue);
-		}
-	    }
-	    else if (strcmp(tname,"key") == 0) {
-		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.key=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(wxcloud_settings.key,tvalue);
-		}
-	    }
-	    else if (strcmp(tname,"ver") == 0) {
-		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.ver=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(wxcloud_settings.ver,tvalue);
-		}
-	    }
-	    else if (strcmp(tname,"type") == 0) {
-		if (strcmp(section,"Weathercloud") == 0) {
-		  wxcloud_settings.type=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
-		  strcpy(wxcloud_settings.type,tvalue);
-		}
-	    }
-	    else if (strcmp(tname,"upload_interval") == 0) {
-		if (strcmp(section,"Wunderground") == 0) {
-		  if (strlen(tvalue) > 0) {
-		    wu_settings.upload_interval=atoi(tvalue);
-		  }
-		}
-		else if (strcmp(section,"Weathercloud") == 0) {
-		  if (strlen(tvalue) > 0) {
-		    wxcloud_settings.upload_interval=atoi(tvalue);
-		  }
-		}
-		else if (strcmp(section,"PWSWeather") == 0) {
-		  if (strlen(tvalue) > 0) {
-		    pwswx_settings.upload_interval=atoi(tvalue);
-		  }
-		}
-	    }
-	  }
-	}
+      char section[LINE_LENGTH];
+      if (tline[0] == '[' && tline[tlen-1] == ']') {
+        strncpy(&section[0],&tline[1],tlen-2);
+        section[tlen-2]='\0';
+      }
+      else {
+        size_t n=0;
+        while (tline[n] != '=' && n < tlen) {
+          ++n;
+        }
+        if (n != tlen) {
+          char name[LINE_LENGTH],value[LINE_LENGTH];
+          strncpy(&name[0],&tline[0],n);
+          name[n]='\0';
+          char *tname=trim(name);
+          strncpy(&value[0],&tline[n+1],tlen-n);
+          value[tlen-n]='\0';
+          char *tvalue=trim(value);
+          if (strcmp(tname,"username") == 0) {
+            if (strcmp(section,"mysql") == 0) {
+              mysql_settings.username=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(mysql_settings.username,tvalue);
+            }
+          }
+          else if (strcmp(tname,"password") == 0) {
+            if (strcmp(section,"mysql") == 0) {
+              mysql_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(mysql_settings.password,tvalue);
+            }
+            else if (strcmp(section,"Wunderground") == 0) {
+              wu_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(wu_settings.password,tvalue);
+            }
+            else if (strcmp(section,"PWSWeather") == 0) {
+              pwswx_settings.password=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(pwswx_settings.password,tvalue);
+            }
+          }
+          else if (strcmp(tname,"station") == 0) {
+            if (strcmp(section,"Wunderground") == 0) {
+              wu_settings.station=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(wu_settings.station,tvalue);
+            }
+            else if (strcmp(section,"PWSWeather") == 0) {
+              pwswx_settings.station=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(pwswx_settings.station,tvalue);
+            }
+          }
+          else if (strcmp(tname,"wid") == 0) {
+            if (strcmp(section,"Weathercloud") == 0) {
+              wxcloud_settings.wid=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(wxcloud_settings.wid,tvalue);
+            }
+          }
+          else if (strcmp(tname,"key") == 0) {
+            if (strcmp(section,"Weathercloud") == 0) {
+              wxcloud_settings.key=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(wxcloud_settings.key,tvalue);
+            }
+          }
+          else if (strcmp(tname,"ver") == 0) {
+            if (strcmp(section,"Weathercloud") == 0) {
+              wxcloud_settings.ver=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(wxcloud_settings.ver,tvalue);
+            }
+          }
+          else if (strcmp(tname,"type") == 0) {
+            if (strcmp(section,"Weathercloud") == 0) {
+              wxcloud_settings.type=(char *)malloc((strlen(tvalue)+1)*sizeof(char));
+              strcpy(wxcloud_settings.type,tvalue);
+            }
+          }
+          else if (strcmp(tname,"upload_interval") == 0) {
+            if (strcmp(section,"Wunderground") == 0) {
+              if (strlen(tvalue) > 0) {
+                wu_settings.upload_interval=atoi(tvalue);
+              }
+            }
+            else if (strcmp(section,"Weathercloud") == 0) {
+              if (strlen(tvalue) > 0) {
+                wxcloud_settings.upload_interval=atoi(tvalue);
+              }
+            }
+            else if (strcmp(section,"PWSWeather") == 0) {
+              if (strlen(tvalue) > 0) {
+                pwswx_settings.upload_interval=atoi(tvalue);
+              }
+            }
+          }
+        }
+      }
     }
   }
   fclose(fp);
@@ -1704,71 +1695,71 @@ int main(int argc,char **argv)
 printf("num devices: %d\n",num_devices);
     size_t n=0;
     for (n=0; n < num_devices; ++n) {
-	struct libusb_device_descriptor desc;
-	libusb_get_device_descriptor(list[n],&desc);
-	if (desc.idVendor == 0x6666 && desc.idProduct == 0x5555) {
-	  break;
-	}
+      struct libusb_device_descriptor desc;
+      libusb_get_device_descriptor(list[n],&desc);
+      if (desc.idVendor == 0x6666 && desc.idProduct == 0x5555) {
+        break;
+      }
     }
     if (n != num_devices) {
-	libusb_device_handle *handle;
-	int status=libusb_open(list[n],&handle);
-	if (status != 0) {
-	  printf("unable to open: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	status=libusb_detach_kernel_driver(handle,0);
-	if (status != 0 && status != LIBUSB_ERROR_NOT_FOUND) {
-	  printf("unable to detach kernal driver: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	status=libusb_claim_interface(handle,0);
-	if (status != 0) {
-	  printf("unable to claim interface: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
+      libusb_device_handle *handle;
+      int status=libusb_open(list[n],&handle);
+      if (status != 0) {
+        printf("unable to open: %s\n",libusb_error_name(status));
+        exit(1);
+      }
+      status=libusb_detach_kernel_driver(handle,0);
+      if (status != 0 && status != LIBUSB_ERROR_NOT_FOUND) {
+        printf("unable to detach kernal driver: %s\n",libusb_error_name(status));
+        exit(1);
+      }
+      status=libusb_claim_interface(handle,0);
+      if (status != 0) {
+        printf("unable to claim interface: %s\n",libusb_error_name(status));
+        exit(1);
+      }
 printf("found! %d %d\n",n,status);
-	status=libusb_control_transfer(handle,0x21,0xa,0,0,NULL,0,1000);
+      status=libusb_control_transfer(handle,0x21,0xa,0,0,NULL,0,1000);
 printf("setup status: %d\n",status);
 
-	char serial_num[15];
-	initialize_transceiver(handle,serial_num);
-	do_setup(handle);
+      char serial_num[15];
+      initialize_transceiver(handle,serial_num);
+      do_setup(handle);
 
-	printf("ready to pair...\n");
+      printf("ready to pair...\n");
 
-	history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
-	data5min_array=(FiveMinuteData *)malloc(FIVE_MINUTE_DATA_SIZE*sizeof(FiveMinuteData));
-	reset_for_new_day(18,1);
-	backfill_history_records(handle,&history_queue[curr_hidx]);
+      history_queue=(History *)malloc(HISTORY_SIZE*sizeof(History));
+      data5min_array=(FiveMinuteData *)malloc(FIVE_MINUTE_DATA_SIZE*sizeof(FiveMinuteData));
+      reset_for_new_day(18,1);
+      backfill_history_records(handle,&history_queue[curr_hidx]);
 
-	unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
-	data_buffer[1]=0;
-	const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
-	while (1) {
-	  wait_for_message(handle);
-	  status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
-	  handle_frame(handle,data_buffer,0);
-	  if ( (time(NULL)-last_history_print_time) > 300) {
-	    printf("***TRYING TO RE-SYNC...***\n");
-	    break;
-	  }
-	  else {
-	    setTX(handle);
-	  }
-	}
+      unsigned char *data_buffer=(unsigned char *)malloc(512*sizeof(unsigned char));
+      data_buffer[1]=0;
+      const char *CURRENT_WX_INSERT="insert into wx.current values(%d,%d,%d,%d,%d,%d,%d,%d,%d,%d,%d) on duplicate key update rh = values(rh)";
+      while (1) {
+        wait_for_message(handle);
+        status=libusb_control_transfer(handle,0xa1,0x1,0x3d6,0,data_buffer,273,1000);
+        handle_frame(handle,data_buffer,0);
+        if ( (time(NULL)-last_history_print_time) > 300) {
+          printf("***TRYING TO RE-SYNC...***\n");
+          break;
+        }
+        else {
+          setTX(handle);
+        }
+      }
 
-	status=libusb_release_interface(handle,0);
-	if (status != 0) {
-	  printf("unable to release interface: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	status=libusb_attach_kernel_driver(handle,0);
-	if (status != 0) {
-	  printf("unable to attach kernal driver: %s\n",libusb_error_name(status));
-	  exit(1);
-	}
-	libusb_close(handle);
+      status=libusb_release_interface(handle,0);
+      if (status != 0) {
+        printf("unable to release interface: %s\n",libusb_error_name(status));
+        exit(1);
+      }
+      status=libusb_attach_kernel_driver(handle,0);
+      if (status != 0) {
+        printf("unable to attach kernal driver: %s\n",libusb_error_name(status));
+        exit(1);
+      }
+      libusb_close(handle);
     }
     libusb_free_device_list(list,1);
     libusb_exit(ctx);
