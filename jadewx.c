@@ -1749,7 +1749,7 @@ printf("setup status: %d\n",status);
         }
       }
 
-      status=libusb_release_interface(handle,0);
+      status = libusb_release_interface(handle, 0);
       if (status != 0) {
         printf("unable to release interface: %s\n",libusb_error_name(status));
         exit(1);
