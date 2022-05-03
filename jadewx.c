@@ -1754,7 +1754,7 @@ printf("setup status: %d\n",status);
         printf("unable to release interface: %s\n",libusb_error_name(status));
         exit(1);
       }
-      status=libusb_attach_kernel_driver(handle,0);
+      status = libusb_attach_kernel_driver(handle, 0);
       if (status != 0) {
         printf("unable to attach kernal driver: %s\n",libusb_error_name(status));
         exit(1);
