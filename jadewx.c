@@ -610,6 +610,8 @@ CurrentWeather wx[2];
 int cwx_idx=0;
 
 void decode_current_wx(unsigned char *buffer,CurrentWeather *current_weather) {
+  float temp_in = (((buffer[24] & 0xf) * 10000. + (buffer[25] >> 4) * 1000. + (buffer[25] & 0xf) * 100. + (buffer[26] >> 4) * 10. + (buffer[26] & 0xf)) / 1000. - 40.) * 9. / 5. + 32.;
+  printf("indoor temperature is: %5.1f\n", temp_in);
   current_weather->temp_out=(((buffer[42] & 0xf)*10000.+(buffer[43] >> 4)*1000.+(buffer[43] & 0xf)*100.+(buffer[44] >> 4)*10.+(buffer[44] & 0xf))/1000.-40.)*9./5.+32.;
   current_weather->dewp_out=(((buffer[78] & 0xf)*10000.+(buffer[79] >> 4)*1000.+(buffer[79] & 0xf)*100.+(buffer[80] >> 4)*10.+(buffer[80] & 0xf))/1000.-40.)*9./5.+32.;
   current_weather->rh_out=(buffer[106] >> 4)*10+(buffer[106] & 0xf);
