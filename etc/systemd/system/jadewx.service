@@ -1,0 +1,12 @@
+[Unit]
+Description=JadeWx USB driver and Weather Underground uploader
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/home/wx/wxstart.sh
+ExecStop=/home/wx/wxstop.sh
+User=wx
+
+[Install]
+WantedBy=multi-user.target
